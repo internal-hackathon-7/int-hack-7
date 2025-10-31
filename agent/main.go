@@ -1,12 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 
 	"github.com/internal-hackathon-7/int-hack-7/agent/config"
 )
+
+// DELETE IN PROD
+const CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 func main() {
 	if len(os.Args) < 2 {
@@ -20,10 +25,80 @@ func main() {
 		if err := config.PingMaster(); err != nil {
 			log.Fatal("Connection NOT established! Service down")
 		}
-		if err := config.InitCommand(); err != nil {
+		projectPath, interval, err := config.InitCommand()
+		if err != nil {
 			fmt.Println("Error:", err)
 		}
-		config.StartService()
+
+		exePath, err := os.Executable()
+		if err != nil {
+			log.Fatalf("Failed to get executable path: %v", err)
+		}
+
+		// example: replace below with your actual command & flags
+		cmd := exec.Command(exePath,
+			"run",
+			"-path", projectPath,
+			"-interval", fmt.Sprintf("%d", interval),
+		)
+
+		// detach from terminal (run in background)
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		cmd.Stdin = nil
+
+		config.SetDetachAttr(cmd)
+
+		if err := cmd.Start(); err != nil {
+			log.Fatalf("Failed to start background command: %v", err)
+		}
+
+		fmt.Printf("Started background process with PID %d\n", cmd.Process.Pid)
+
+	case "run":
+		initCmd := flag.NewFlagSet("run", flag.ExitOnError)
+		projectPath := initCmd.String("path", ".", "Path to the project directory to monitor")
+		interval := initCmd.Int("interval", 10, "Polling interval in seconds (integer only)")
+
+		if err := initCmd.Parse(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+
+		daemonDir := fmt.Sprintf("%s/.daemon", *projectPath)
+		if err := os.MkdirAll(daemonDir, 0755); err != nil {
+			log.Fatalf("Failed to create daemon directory: %v", err)
+		}
+
+		// --- SETUP LOG FILE ---
+		logFilePath := fmt.Sprintf("%s/agent.log", daemonDir)
+		logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalf("Failed to open log file: %v", err)
+		}
+		defer logFile.Close()
+
+		log.SetOutput(logFile)
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+		log.Println("Agent starting up...")
+		log.Printf("Monitoring path: %s\n", *projectPath)
+		log.Printf("Interval: %d seconds\n", *interval)
+
+		// --- WRITE PID FILE ---
+		pidFilePath := fmt.Sprintf("%s/agent.pid", daemonDir)
+		pid := os.Getpid()
+
+		if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
+			log.Fatalf("Failed to write PID file: %v", err)
+		}
+		log.Printf("PID %d written to %s\n", pid, pidFilePath)
+
+		// --- START SERVICE ---
+		config.StartService(*projectPath, *interval)
+
+		// --- CLEANUP WHEN EXITING ---
+		os.Remove(pidFilePath)
+		log.Println("Agent shutting down.")
 
 	default:
 		fmt.Println("Unknown command:", os.Args[1])

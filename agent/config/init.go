@@ -34,20 +34,20 @@ func prompt(question, defaultVal string) string {
 	return input
 }
 
-func ConnectRoom(roomID string) (int, error) {
+func ConnectRoom(roomID string) (interval int, err error) {
 	//api call to connect to room
-	//send roomID , get the interval
-	return 0, nil
+	//asks master for the interval
+	//returns interval (seconds)
+	return 5, nil
 }
 
 // InitCommand handles `daemon init`
-func InitCommand() (int, error) {
+func InitCommand() (string, int, error) {
 	fmt.Println("Welcome to Daemon setup!")
 
 	roomID := prompt("Enter your room ID", "")
 
 	interval, err := ConnectRoom(roomID)
-
 	if err != nil {
 		log.Fatalf("Room ID [%v] NOT FOUND", roomID)
 	}
@@ -57,6 +57,7 @@ func InitCommand() (int, error) {
 	config := types.ProjectConfig{
 		ProjectPath: projectPath,
 		RoomID:      roomID,
+		Interval:    interval,
 	}
 
 	configDir := filepath.Join(projectPath, ".daemon")
@@ -65,27 +66,30 @@ func InitCommand() (int, error) {
 
 	data, err := yaml.Marshal(&config)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	err = os.WriteFile(configFile, data, 0644)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	fmt.Println("Config saved at", configFile)
 	fmt.Println("Proceeding to start service")
 
-	return interval, nil
+	return projectPath, interval, nil
 }
 
 // startService simulates a background daemon
-func StartService(interval int) {
-	ticker := time.NewTicker(time.Duration(interval * time.se))
+func StartService(projectPath string, interval int) {
+	ticker := time.NewTicker(time.Duration(interval * int(time.Second)))
 	defer ticker.Stop()
 
 	for range ticker.C {
-		fmt.Println("per interval tasks done")
+		log.Println("per interval tasks doing")
+		log.Println("project path = ", projectPath)
+		log.Println("interval = ", interval)
+		log.Println("per interval tasks done")
 	}
 }
 
