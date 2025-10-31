@@ -1,0 +1,122 @@
+body {
+  background: #000;
+  color: #0f0;
+  font-family: "Courier New", monospace;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+
+.terminal-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  position: relative;
+}
+
+.terminal-glow {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(0, 255, 0, 0.05), transparent 70%);
+  animation: pulse 3s infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+.terminal-window {
+  background: #0a0a0a;
+  border: 2px solid #00ff66;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 700px;
+  height: 80vh;
+  box-shadow: 0 0 30px rgba(0, 255, 100, 0.4);
+  overflow-y: auto;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #00ff66;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.red { background: #ff5f56; }
+.yellow { background: #ffbd2e; }
+.green { background: #27c93f; }
+
+.title {
+  font-size: 0.9rem;
+  color: #0f0;
+  opacity: 0.8;
+}
+
+.terminal-body {
+  padding: 1rem;
+}
+
+.prompt-line {
+  color: #0f0;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.neon-card {
+  background: rgba(0, 255, 100, 0.05);
+  border: 1px solid #00ff66;
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.3);
+  text-align: center;
+  color: #0f0;
+  margin: 1rem 0;
+}
+
+.user-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px solid #00ff66;
+  box-shadow: 0 0 15px rgba(0, 255, 100, 0.3);
+}
+
+.user-info h2 {
+  margin: 0;
+  color: #0f0;
+}
+
+.user-info p {
+  color: #8f8;
+  font-size: 0.9rem;
+}
+
+.hint {
+  margin-top: 1rem;
+  color: #8f8;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}

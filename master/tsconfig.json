@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    /* === Paths === */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* === Environment === */
+    "target": "ES2022", // modern Node.js (>=16)
+    "module": "NodeNext", // required for modern Node ESM
+    "moduleResolution": "NodeNext",
+    "lib": ["ESNext"], // gives modern JS APIs
+    "types": ["node"], // includes Node types
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    /* === Output === */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    /* === Type Safety === */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    /* === Module Behavior === */
+    "verbatimModuleSyntax": true, // keeps import/export syntax
+    "isolatedModules": false, // disable for server (handled by tsc)
+    "moduleDetection": "force",
+
+    /* === Cleanups === */
+    "skipLibCheck": true,
+    "noEmitOnError": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
