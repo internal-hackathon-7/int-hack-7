@@ -307,3 +307,17 @@
   scroll-behavior: smooth;
   padding-bottom: 2rem; /* add some bottom spacing for the end of scroll */
 }
+
+.neon-card {
+  background: rgba(10, 10, 10, 0.85);
+  border: 1px solid #00ff6633;
+  border-radius: 12px;
+  box-shadow: 0 0 10px #00ff6622;
+}
+
+.neon-title {
+  font-family: "Fira Code", monospace;
+  font-weight: 500;
+  color: #00ff66;
+  text-shadow: 0 0 4px #00ff66aa;
+}

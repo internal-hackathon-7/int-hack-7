@@ -117,20 +117,35 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     const { roomId, googleId } = req.body;
 
     if (!roomId || !googleId) {
-      console.log("❌ Missing roomId or googleId:", req.body);
       return res.status(400).json({ error: "Missing roomId or googleId" });
     }
 
-    console.log("🔍 Searching DiffBlob for:", { roomId, googleId });
+    // Fetch all documents for the member, sorted by latest timestamp
+    const data = await DiffBlobModel.find({
+      roomId,
+      memberId: googleId,
+    }).sort({ timestamp: -1 });
 
-    const data = await DiffBlobModel.find({ roomId, memberId : googleId }).sort({
-      timestamp: -1,
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: "No data found" });
+    }
+
+    // Extract all timestamps separately (for timeline or history view)
+    const allTimestamps = data.map((entry) => ({
+      projectName: entry.projectName,
+      timestamp: entry.timestamp,
+      newHash: entry.newHash,
+      oldHash: entry.oldHash,
+    }));
+
+    // Respond with both the data and timestamps
+    res.status(200).json({
+      message: "Fetched member activity successfully",
+      allTimestamps,
+      diffData: data,
     });
-
-    console.log("✅ Found", data.length, "records");
-    return res.json(data);
-  } catch (err) {
-    console.error("❌ Error fetching diff blobs:", err);
-    return res.status(500).json({ error: "Failed to fetch diff data" });
+  } catch (error) {
+    console.error("❌ Error fetching diff blobs:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
