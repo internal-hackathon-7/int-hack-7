@@ -8,12 +8,13 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes.js";
 import { setupWebSocket } from "./websocket/index.js";
 import { connectDB } from "./database/db.ts";
+import mongoose from "mongoose";
+
+await connectDB();
+console.log("📦 Connected DB name:", mongoose.connection.name);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// ✅ Connect MongoDB
-connectDB();
 
 // ✅ Middleware
 app.use(
@@ -25,7 +26,6 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// ✅ Basic health check routes
 app.get("/", (req: Request, res: Response) => {
   res.json({ message: "Hello from TypeScript server" });
 });

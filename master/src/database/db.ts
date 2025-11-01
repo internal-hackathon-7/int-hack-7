@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 export async function connectDB() {
   const uri = "mongodb://localhost:27017";
-  const dbName = "studyportal";
+  const dbName = "git-tracker";
 
   try {
     await mongoose.connect(uri, {

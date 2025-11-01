@@ -104,7 +104,9 @@ export default function RoomPage() {
                   <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white">
                     {m.memberId.slice(0, 3)}...
                   </div>
-                  <span className="text-sm text-gray-300">{m.memberId}</span>
+                  <span className="text-sm text-gray-300">
+                    {m.memberId}
+                  </span>
                 </motion.li>
               ))
             )}
