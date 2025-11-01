@@ -1,4 +1,4 @@
-BINARY_NAME = daemon
+BINARY_NAME = inthack
 BUILD_DIR = bin
 MAIN_FILE = main.go
 
