@@ -300,3 +300,10 @@
   font-size: 0.75rem;
   color: #80ffb0;
 }
+.terminal-window.full {
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  padding-bottom: 2rem; /* add some bottom spacing for the end of scroll */
+}

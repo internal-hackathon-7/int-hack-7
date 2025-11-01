@@ -150,7 +150,10 @@ export default function RoomPage() {
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="member-item flex items-center gap-3"
+                  className="member-item flex items-center gap-3 cursor-pointer hover:bg-green-900/20 transition-all p-2 rounded-lg"
+                  onClick={() =>
+                    navigate(`/room/${roomId}/member/${m.memberId}`)
+                  }
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white">
                     {m.memberId.slice(0, 3)}...
