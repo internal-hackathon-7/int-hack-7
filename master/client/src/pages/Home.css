@@ -1,118 +1,131 @@
-/* Full-screen terminal look */
-.terminal-screen {
-  height: 100vh;
+/* Base terminal screen */
+.terminal-screen.full {
   width: 100vw;
-  background-color: #000;
+  height: 100vh;
+  background: #000;
+  color: #0f0;
   display: flex;
-  align-items: center;
   justify-content: center;
-  color: #00ff99;
-  font-family: "Fira Code", monospace;
-  position: relative;
+  align-items: center;
   overflow: hidden;
+  font-family: "Fira Code", monospace;
 }
 
-/* Subtle glow effect */
 .terminal-glow {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center, rgba(0, 255, 150, 0.15), transparent 70%);
+  background: radial-gradient(circle at center, rgba(0, 255, 100, 0.2), transparent 70%);
+  filter: blur(150px);
   z-index: 0;
-  filter: blur(120px);
 }
 
-/* Terminal window styling */
-.terminal-window {
-  width: 90%;
-  max-width: 800px;
-  background-color: rgba(0, 0, 0, 0.85);
-  border: 2px solid #00ff99;
-  border-radius: 12px;
-  box-shadow: 0 0 30px rgba(0, 255, 150, 0.3);
+.terminal-window.full {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
   position: relative;
   z-index: 1;
-  overflow: hidden;
 }
 
-/* Header bar with colored dots */
+/* Header */
 .terminal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1rem;
-  background-color: rgba(0, 255, 100, 0.1);
+  padding: 0.7rem 1rem;
+  background-color: rgba(0, 255, 100, 0.08);
   border-bottom: 1px solid rgba(0, 255, 150, 0.3);
-  font-size: 0.9rem;
 }
 
 .dots {
   display: flex;
   gap: 6px;
 }
-
 .dot {
   height: 10px;
   width: 10px;
   border-radius: 50%;
-  display: inline-block;
 }
-.dot.red {
-  background: #ff5555;
-}
-.dot.yellow {
-  background: #f1fa8c;
-}
-.dot.green {
-  background: #50fa7b;
+.dot.red { background: #ff5555; }
+.dot.yellow { background: #f1fa8c; }
+.dot.green { background: #50fa7b; }
+
+.title {
+  color: #00ff88;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
 }
 
-/* Terminal body */
-.terminal-body {
+/* User Card */
+.user-card.top-right {
+  position: absolute;
+  top: 0.8rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #00ff66;
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  box-shadow: 0 0 15px rgba(0, 255, 100, 0.3);
+}
+
+.user-card .avatar {
+  height: 40px;
+  width: 40px;
+  border-radius: 50%;
+  border: 1px solid #00ff66;
+}
+
+.user-info h2 {
+  font-size: 1rem;
+  color: #00ff99;
+  margin: 0;
+}
+.user-info p {
+  font-size: 0.8rem;
+  color: #66ffcc;
+  margin: 0;
+}
+
+/* Body Grid Layout */
+.terminal-body-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 2rem;
   padding: 2rem;
 }
 
-/* Prompt line with typing effect */
-.prompt-line {
-  margin-bottom: 2rem;
-  color: #00ff99;
-  font-size: 1.1rem;
-}
-
-.typing .prompt-text {
-  border-right: 2px solid #00ff99;
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  50% {
-    border-color: transparent;
+@media (max-width: 900px) {
+  .terminal-body-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 }
 
-/* Neon card */
+/* Room Control Card */
 .neon-card {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #00ff99;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #00ff66;
   border-radius: 10px;
   padding: 2rem;
-  box-shadow: 0 0 20px rgba(0, 255, 150, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.2);
   text-align: center;
 }
 
-.neon-text h2 {
-  font-size: 1.8rem;
+.neon-card h3 {
   color: #00ff99;
-  margin-bottom: 0.5rem;
+  font-size: 1.4rem;
+  margin-bottom: 1.2rem;
 }
 
-.neon-text .muted {
-  color: #80ffcc;
-  font-size: 0.95rem;
-  margin-bottom: 1.5rem;
-}
-
-/* Google button */
+/* Neon Buttons */
 .neon-btn {
   background: none;
   color: #00ff99;
@@ -122,31 +135,83 @@
   font-family: inherit;
   cursor: pointer;
   font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  width: 100%;
+  margin-top: 0.6rem;
   transition: all 0.3s ease;
 }
 
-.neon-btn:hover {
-  background: rgba(0, 255, 150, 0.2);
-  box-shadow: 0 0 12px #00ff99;
+.create-btn {
+  background: rgba(0, 255, 150, 0.08);
+}
+.create-btn:hover {
+  background: rgba(0, 255, 150, 0.3);
+  box-shadow: 0 0 10px #00ff99;
 }
 
-.btn-google {
-  height: 18px;
-  width: 18px;
+.join-btn {
+  color: #00aaff;
+  border-color: #00aaff;
+}
+.join-btn:hover {
+  background: rgba(0, 150, 255, 0.2);
+  box-shadow: 0 0 12px #00aaff;
 }
 
-.btn-text {
-  font-size: 1rem;
-}
-
-/* Tip line */
-.hint {
-  margin-top: 2rem;
-  color: #00cc88;
-  font-size: 0.9rem;
+/* Input */
+.join-input {
+  margin-top: 1rem;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #00ff66;
+  color: #00ff99;
+  font-family: "Courier New", monospace;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
   text-align: center;
-  opacity: 0.8;
+}
+
+.join-input::placeholder {
+  color: #007733;
+}
+
+/* Logs */
+.logs-window {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #00ff66;
+  border-radius: 10px;
+  box-shadow: inset 0 0 15px rgba(0, 255, 100, 0.2);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.logs-header {
+  font-size: 1rem;
+  color: #00ff99;
+  margin-bottom: 0.8rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 255, 150, 0.2);
+  padding-bottom: 0.5rem;
+}
+
+.logs-content {
+  color: #00ff88;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hint text */
+.hint {
+  color: #00cc88;
+  margin-top: 1.2rem;
+  font-size: 0.85rem;
 }

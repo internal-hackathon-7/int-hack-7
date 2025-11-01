@@ -1,13 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef, useState, type JSX } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type JSX,
+} from "react";
+import { io, Socket } from "socket.io-client";
 import { motion } from "framer-motion";
 import { LogOut } from "lucide-react";
 import { Button } from "../components/ui/button";
 import "./Home.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:3000";
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "http://localhost:3000";
 
 interface User {
   name: string;
@@ -16,79 +23,68 @@ interface User {
 }
 
 export default function HomePage(): JSX.Element {
-  // ─────────────────────────────── STATE ───────────────────────────────
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [wsConnected, setWsConnected] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+
+  const socketRef = useRef<Socket | null>(null);
   const terminalRef = useRef<HTMLDivElement | null>(null);
 
-  // ─────────────────────────────── HELPERS ───────────────────────────────
-  const log = (line: string) => {
+  // ─────────────────────────────── LOGGING ───────────────────────────────
+  const log = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev, `${time}: ${line}`]);
-  };
-
-  const sendWs = (payload: object) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-    } else {
-      log("WebSocket not connected");
-    }
-  };
-
-  const createRoom = () => sendWs({ type: "create_room" });
-  const joinRoom = () => sendWs({ type: "join_room", code: joinCode });
-
-  // ─────────────────────────────── EFFECTS ───────────────────────────────
-  useEffect(() => {
-    const WS_URL = `${WS_BASE.replace(/^http/, "ws")}/socket`;
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setWsConnected(true);
-      log("Connected to WebSocket");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case "room_created":
-            setRoomCode(data.code);
-            log(`Room created: ${data.code}`);
-            break;
-          case "joined_room":
-            setRoomCode(data.code);
-            log(`Joined room: ${data.code}`);
-            break;
-          default:
-            log(`Message: ${JSON.stringify(data)}`);
-        }
-      } catch {
-        log(`Raw: ${event.data}`);
-      }
-    };
-
-    ws.onclose = () => {
-      setWsConnected(false);
-      log("WebSocket disconnected");
-    };
-
-    return () => ws.close();
+    setLogs((prev) => [...prev, `[${time}] ${msg}`]);
   }, []);
 
+  // ─────────────────────────────── SOCKET SETUP ───────────────────────────────
   useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
+    const socket = io(WS_BASE, {
+      transports: ["websocket"],
+      withCredentials: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setSocketConnected(true);
+      log(`✅ Connected to Socket.IO (${socket.id})`);
+    });
+
+    socket.on("disconnect", () => {
+      setSocketConnected(false);
+      log("🔴 Socket.IO disconnected");
+    });
+
+    socket.on("room_created", (roomId: string) => {
+      setRoomCode(roomId);
+      log(`🏠 Room created: ${roomId}`);
+    });
+
+    socket.on("room_joined", (roomId: string) => {
+      setRoomCode(roomId);
+      log(`🙋 Joined Room: ${roomId}`);
+    });
+
+    socket.on("error_message", (msg: string) => {
+      log(`⚠️ Error: ${msg}`);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [log]);
+
+  // ─────────────────────────────── AUTO SCROLL ───────────────────────────────
+  useEffect(() => {
+    const t = terminalRef.current;
+    if (t) t.scrollTop = t.scrollHeight;
   }, [logs]);
 
+  // ─────────────────────────────── FETCH USER ───────────────────────────────
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -108,16 +104,24 @@ export default function HomePage(): JSX.Element {
     fetchUser();
   }, []);
 
+  // ─────────────────────────────── SOCKET ACTIONS ───────────────────────────────
+  const createRoom = () => {
+    socketRef.current?.emit("create_room");
+  };
+
+  const joinRoom = () => {
+    const code = joinCode.trim().toUpperCase();
+    if (!code) return log("⚠️ Please enter a valid room code");
+    socketRef.current?.emit("join_room", code);
+  };
+
+  // ─────────────────────────────── LOGOUT ───────────────────────────────
   const handleLogout = async () => {
-    try {
-      await fetch(`${API_BASE}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
-      window.location.href = `${location.origin}/`;
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+    window.location.href = `${location.origin}/`;
   };
 
   // ─────────────────────────────── RENDER ───────────────────────────────
@@ -136,28 +140,31 @@ export default function HomePage(): JSX.Element {
   if (!user) return <></>;
 
   return (
-    <div className="terminal-screen">
+    <div className="terminal-screen full">
       <div className="terminal-glow" />
-      <div className="terminal-window">
+      <div className="terminal-window full">
+        {/* HEADER */}
         <div className="terminal-header">
           <div className="dots">
             <span className="dot red" />
             <span className="dot yellow" />
             <span className="dot green" />
           </div>
+
           <div className="title">user@neon-terminal:~</div>
 
           <Button
             onClick={handleLogout}
             variant="ghost"
-            className="text-[#00ff66]"
+            className="text-[#00ff66] hover:text-[#33ffaa] transition"
           >
             <LogOut size={18} />
           </Button>
         </div>
 
-        <div className="terminal-body" ref={terminalRef}>
-          {/* USER CARD */}
+        {/* BODY */}
+        <div className="terminal-body-grid" ref={terminalRef}>
+          {/* LEFT: User info */}
           <div className="user-card neon-card">
             <img src={user.picture} alt={user.name} className="avatar" />
             <div className="user-info">
@@ -166,38 +173,54 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
-          {/* ROOM CONTROLS */}
-          <div className="neon-card">
-            <h3>Create or Join a Room</h3>
-            <Button onClick={createRoom} className="mt-2 neon-btn">
-              Create Room
-            </Button>
+          {/* CENTER: Room controls */}
+          <div className="neon-card room-control">
+            <h3 className="neon-title">⚡ Create or Join a Room</h3>
 
-            <div className="mt-3 flex gap-2 justify-center">
-              <input
-                type="text"
-                placeholder="Enter room code"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                className="bg-black border border-[#00ff66] px-3 py-2 rounded-md text-[#0f0] focus:outline-none"
-              />
-              <Button onClick={joinRoom} className="neon-btn">
-                Join
+            <div className="command-buttons">
+              <Button
+                onClick={createRoom}
+                className="neon-btn wide-btn create-btn"
+              >
+                Create Room
               </Button>
+
+              <div className="mt-3 flex gap-2 justify-center">
+                <input
+                  type="text"
+                  placeholder="Enter room code"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  className="join-input"
+                />
+                <Button onClick={joinRoom} className="neon-btn join-btn">
+                  Join
+                </Button>
+              </div>
             </div>
 
-            <p className="hint mt-2">
-              WebSocket: {wsConnected ? "🟢 Connected" : "🔴 Disconnected"}
-            </p>
-            {roomCode && <p className="hint">Room Code: {roomCode}</p>}
+            <div className="status-bar">
+              <span
+                className={`status-dot ${socketConnected ? "online" : "offline"}`}
+              />
+              <span className="status-text">
+                {socketConnected ? "Connected" : "Disconnected"}
+              </span>
+              {roomCode && (
+                <span className="room-code">
+                  Room ID: <strong>{roomCode}</strong>
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* LOG TERMINAL */}
-          <pre className="prompt-line mt-4 text-[#0f0] text-sm whitespace-pre-wrap">
-            <span className="prompt-user">user@neon:~$</span> Logs
-            {"\n"}
-            {logs.length ? logs.join("\n") : "No logs yet..."}
-          </pre>
+          {/* RIGHT: Logs */}
+          <div className="neon-terminal-logs">
+            <div className="terminal-header-bar">📜 Live Logs</div>
+            <pre className="terminal-log-output">
+              {logs.length ? logs.join("\n") : "No logs yet..."}
+            </pre>
+          </div>
         </div>
       </div>
     </div>

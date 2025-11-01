@@ -9,9 +9,11 @@
     "module": "NodeNext", // required for modern Node ESM
     "moduleResolution": "NodeNext",
     "lib": ["ESNext"], // gives modern JS APIs
-    "types": ["node"], // includes Node types
+    "types": ["node" , "ws"], // includes Node types
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
 
     /* === Output === */
     "sourceMap": true,
