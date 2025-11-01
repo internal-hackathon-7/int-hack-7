@@ -1,3 +1,4 @@
+// src/pages/MemberActivityPage.tsx
 "use client";
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -17,10 +18,11 @@ import {
   Legend,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Folder, FolderOpen, FileCode2 } from "lucide-react";
+import { ArrowLeft, Folder, FolderOpen, FileCode2, Clock1 } from "lucide-react";
 import { Button } from "../components/ui/button";
-import "./Home.css";
+import "./Home.css"; // keeps your neon styles
 
+// --- Types (match your backend) ---
 interface SummaryInfo {
   filesChanged: number;
   insertions: number;
@@ -29,76 +31,84 @@ interface SummaryInfo {
   copies: number;
 }
 
-interface FileChange {
-  filePath: string;
-  changes: string;
+interface RawChange {
+  action?: string;
+  oldPath?: string;
+  newPath?: string;
+  linesAdded?: number;
+  linesDeleted?: number;
+  patch?: { diffText?: string };
 }
 
 interface DiffBlob {
+  _id?: string;
   projectName: string;
   oldHash: string;
   newHash: string;
-  timestamp: string;
+  timestamp: string; // or ISODate string
   summary: SummaryInfo;
-  changes?: any[];
+  changes?: RawChange[];
 }
 
-interface TreeNode {
-  name: string;
-  type: "folder" | "file";
-  action?: string;
-  children?: TreeNode[];
-  content?: string;
-}
-
+// --- Component ---
 export default function MemberActivityPage() {
   const { roomId, googleId } = useParams();
   const navigate = useNavigate();
   const [diffData, setDiffData] = useState<DiffBlob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFile, setSelectedFile] = useState<FileChange | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<
-    Record<string, boolean>
-  >({});
-  const API_BASE = import.meta.env.VITE_API_BASE_URL;
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null); // _id
+  const [openDiff, setOpenDiff] = useState<{
+    title: string;
+    text: string;
+  } | null>(null);
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
+  // fetch all timestamps (all diffs) for this member + room
   useEffect(() => {
     if (!roomId || !googleId) {
       console.warn("🚫 Missing roomId or googleId");
+      setLoading(false);
       return;
     }
 
     (async () => {
+      setLoading(true);
       try {
         const res = await fetch(`${API_BASE}/daemon/fetchDiffBlobMember`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ roomId, googleId }),
         });
-        const data = await res.json();
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+
+        const data = (await res.json()) as DiffBlob[]; // expecting array of diff docs
         setDiffData(data || []);
       } catch (err) {
         console.error("❌ Error fetching diff blobs:", err);
+        setDiffData([]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [roomId, googleId]);
+  }, [roomId, googleId, API_BASE]);
 
-  const COLORS = ["#00ff66", "#33ffaa", "#00cc88", "#007755", "#00ffee"];
-
+  // --- small charts data ---
   const summaryData = diffData.map((d) => ({
     project: d.projectName,
-    insertions: d.summary.insertions,
-    deletions: d.summary.deletions,
-    filesChanged: d.summary.filesChanged,
+    insertions: d.summary?.insertions ?? 0,
+    deletions: d.summary?.deletions ?? 0,
+    filesChanged: d.summary?.filesChanged ?? 0,
   }));
 
   const totalSummary = summaryData.reduce(
     (acc, cur) => ({
-      insertions: acc.insertions + cur.insertions,
-      deletions: acc.deletions + cur.deletions,
-      filesChanged: acc.filesChanged + cur.filesChanged,
+      insertions: acc.insertions + (cur.insertions || 0),
+      deletions: acc.deletions + (cur.deletions || 0),
+      filesChanged: acc.filesChanged + (cur.filesChanged || 0),
     }),
     { insertions: 0, deletions: 0, filesChanged: 0 }
   );
@@ -111,153 +121,257 @@ export default function MemberActivityPage() {
 
   const timelineData = diffData.map((d, i) => ({
     index: i + 1,
-    hash: d.newHash.slice(0, 7),
+    hash: (d.newHash || "").slice(0, 7),
     timestamp: new Date(d.timestamp).toLocaleString(),
-    changes: d.summary.insertions - d.summary.deletions,
+    insertions: d.summary?.insertions ?? 0,
+    deletions: d.summary?.deletions ?? 0,
+    filesChanged: d.summary?.filesChanged ?? 0,
   }));
 
-  const toggleFolder = (path: string) => {
-    setExpandedFolders((prev) => ({ ...prev, [path]: !prev[path] }));
-  };
+  // helper: readable timestamp label
+  const tsLabel = (t?: string) =>
+    t ? new Date(t).toLocaleString() : "unknown time";
 
-  const buildTree = (changes: any[]): TreeNode[] => {
-    const root: Record<string, any> = {};
-    for (const file of changes) {
-      const filePath = file.newPath || file.oldPath;
-      if (!filePath) continue;
-      const parts = filePath.split("/");
-      let current = root;
+  // render commit list (vertical)
+  const CommitCard: React.FC<{ commit: DiffBlob }> = ({ commit }) => {
+    const id = commit._id ?? `${commit.newHash}-${commit.timestamp}`;
+    const isOpen = expandedCommit === id;
+    const files = commit.changes || [];
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (!current[part]) {
-          current[part] = {
-            name: part,
-            type: i === parts.length - 1 ? "file" : "folder",
-            action: file.action,
-            ...(i === parts.length - 1
-              ? { content: file.patch?.diffText }
-              : { children: {} }),
-          };
-        }
-        if (i < parts.length - 1) current = current[part].children;
-      }
-    }
+    return (
+      <div className="neon-card my-3 p-3" style={{ overflow: "visible" }}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Clock1 className="text-[#00ff66]" />
+              <div className="font-mono text-sm">
+                {tsLabel(commit.timestamp)}
+              </div>
+            </div>
 
-    const toArray = (obj: Record<string, any>): TreeNode[] =>
-      Object.values(obj).map((node) =>
-        node.type === "folder"
-          ? { ...node, children: toArray(node.children || {}) }
-          : node
-      );
-
-    return toArray(root);
-  };
-
-  const getActionColor = (action?: string) => {
-    switch (action) {
-      case "added":
-        return "text-green-400";
-      case "modified":
-        return "text-yellow-400";
-      case "deleted":
-        return "text-red-400";
-      case "renamed":
-        return "text-blue-400";
-      default:
-        return "text-[#00ff66]";
-    }
-  };
-
-  // 🌳 Improved Tree Rendering
-  const renderTree = (nodes: TreeNode[], depth = 0, basePath = "") => (
-    <div className="ml-4 border-l border-[#1f1f1f] pl-4">
-      {nodes.map((node, index) => {
-        const fullPath = `${basePath}/${node.name}`;
-        const isExpanded = expandedFolders[fullPath];
-
-        return (
-          <motion.div
-            key={fullPath}
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: index * 0.05 }}
-            className="relative group"
-          >
-            <div className="absolute left-[-18px] top-0 h-full border-l border-[#1f1f1f]" />
-            {node.type === "folder" ? (
+            <div className="ml-2 text-xs text-gray-300">
               <div>
-                <div
-                  className="flex items-center gap-2 cursor-pointer text-[#33ffaa] hover:text-[#00ff66] transition-all"
-                  onClick={() => toggleFolder(fullPath)}
-                >
-                  {isExpanded ? (
-                    <FolderOpen size={16} className="text-[#00ff66]" />
-                  ) : (
-                    <Folder size={16} className="text-[#33ffaa]" />
-                  )}
-                  <span className="font-mono text-sm">{node.name}</span>
+                project:{" "}
+                <strong className="text-[#33ffaa]">{commit.projectName}</strong>
+              </div>
+              <div className="mt-1">
+                hash: <code>{(commit.newHash || "").slice(0, 10)}</code>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-xs font-mono text-[#00ff66]">
+              +{commit.summary?.insertions ?? 0}
+            </div>
+            <div className="text-xs font-mono text-[#ff6666]">
+              -{commit.summary?.deletions ?? 0}
+            </div>
+            <div className="text-xs font-mono text-[#33ffaa]">
+              {commit.summary?.filesChanged ?? 0} files
+            </div>
+
+            <Button
+              onClick={() => setExpandedCommit(isOpen ? null : id)}
+              variant="ghost"
+              className="text-[#00ff66]"
+            >
+              {isOpen ? "Collapse" : "Show files"}
+            </Button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.22 }}
+              className="mt-3"
+            >
+              <div className="border-t border-[#222] pt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* left: files list */}
+                <div>
+                  <h4 className="neon-title mb-2">Changed Files</h4>
+                  <div className="space-y-1">
+                    {files.length === 0 && (
+                      <div className="text-sm text-gray-400">No files</div>
+                    )}
+                    {files.map((f: RawChange, idx: number) => {
+                      const path = f.newPath || f.oldPath || "unknown";
+                      const action = f.action || "modified";
+                      const badgeColor =
+                        action === "added"
+                          ? "bg-green-600"
+                          : action === "deleted"
+                            ? "bg-red-600"
+                            : action === "renamed"
+                              ? "bg-blue-600"
+                              : "bg-yellow-600";
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-[#071007] cursor-pointer"
+                          onClick={() =>
+                            setOpenDiff({
+                              title: path,
+                              text:
+                                f.patch?.diffText ??
+                                `No unified diff available — action: ${action}`,
+                            })
+                          }
+                        >
+                          <div className="flex items-center gap-3">
+                            <FileCode2 className="text-[#00ff66]" />
+                            <div className="font-mono text-sm">
+                              {path.split("/").slice(-1)[0]}
+                              <div className="text-xs text-gray-500">
+                                {path}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`text-xs px-2 py-1 rounded ${badgeColor} text-white`}
+                            >
+                              {action}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              +{f.linesAdded ?? 0} / -{f.linesDeleted ?? 0}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="ml-6 border-l border-[#222] pl-3 mt-1"
-                    >
-                      {node.children &&
-                        renderTree(node.children, depth + 1, fullPath)}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ) : (
-              <motion.div
-                whileHover={{ scale: 1.03, x: 3 }}
-                onClick={() =>
-                  setSelectedFile({
-                    filePath: fullPath,
-                    changes: node.content || "No diff available",
-                  })
-                }
-                className={`flex items-center gap-2 pl-2 py-1 cursor-pointer rounded-md transition-all duration-150 ${getActionColor(
-                  node.action
-                )} hover:bg-[#0a0a0a] hover:shadow-[0_0_5px_#00ff66]/40`}
-              >
-                <FileCode2 size={14} />
-                <span className="font-mono text-sm">{node.name}</span>
-                {node.action && (
-                  <span className="text-xs text-gray-500 ml-2 italic">
-                    ({node.action})
-                  </span>
-                )}
-              </motion.div>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
+                {/* right: summary + small charts */}
+                <div>
+                  <h4 className="neon-title mb-2">Commit Summary</h4>
 
-  if (loading)
+                  <div className="neon-card p-3 mb-3">
+                    <div className="font-mono text-sm">
+                      <div>
+                        Insertions:{" "}
+                        <strong className="text-[#00ff66]">
+                          {commit.summary?.insertions ?? 0}
+                        </strong>
+                      </div>
+                      <div>
+                        Deletions:{" "}
+                        <strong className="text-[#ff6666]">
+                          {commit.summary?.deletions ?? 0}
+                        </strong>
+                      </div>
+                      <div>
+                        Files changed:{" "}
+                        <strong className="text-[#33ffaa]">
+                          {commit.summary?.filesChanged ?? 0}
+                        </strong>
+                      </div>
+                      <div>
+                        Renames: <strong>{commit.summary?.renames ?? 0}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ height: 160 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[
+                          {
+                            key: "insertions",
+                            value: commit.summary?.insertions ?? 0,
+                          },
+                          {
+                            key: "deletions",
+                            value: commit.summary?.deletions ?? 0,
+                          },
+                          {
+                            key: "files",
+                            value: commit.summary?.filesChanged ?? 0,
+                          },
+                        ]}
+                      >
+                        <CartesianGrid stroke="#111" />
+                        <XAxis dataKey="key" stroke="#00ff66" />
+                        <YAxis stroke="#00ff66" />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#00ff66" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  // color-coded diff renderer
+  const renderDiff = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    return lines.map((line, i) => {
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        return (
+          <div key={i} className="text-green-400 font-mono whitespace-pre">
+            {line}
+          </div>
+        );
+      }
+      if (line.startsWith("-") && !line.startsWith("---")) {
+        return (
+          <div key={i} className="text-red-400 font-mono whitespace-pre">
+            {line}
+          </div>
+        );
+      }
+      if (line.startsWith("@@")) {
+        return (
+          <div key={i} className="text-blue-300 font-mono whitespace-pre">
+            {line}
+          </div>
+        );
+      }
+      // file header lines like --- a/... or +++ b/...
+      if (line.startsWith("+++ ") || line.startsWith("--- ")) {
+        return (
+          <div key={i} className="text-gray-300 font-mono whitespace-pre">
+            {line}
+          </div>
+        );
+      }
+      return (
+        <div key={i} className="text-[#c7f7d1] font-mono whitespace-pre">
+          {line}
+        </div>
+      );
+    });
+  };
+
+  if (loading) {
     return (
       <div className="terminal-screen full flex items-center justify-center text-[#00ff66]">
         Loading member activity...
       </div>
     );
-
-  const lastChanges = diffData[0]?.changes || [];
+  }
 
   return (
     <div className="terminal-screen full">
       <div className="terminal-glow" />
-      <div className="terminal-window full">
-        {/* HEADER */}
+      <div
+        className="terminal-window full"
+        style={{ padding: 20, overflow: "auto", maxHeight: "100vh" }}
+      >
+        {/* header */}
         <div className="terminal-header flex justify-between items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               onClick={() => navigate(-1)}
               variant="ghost"
@@ -265,153 +379,149 @@ export default function MemberActivityPage() {
             >
               <ArrowLeft size={18} /> Back
             </Button>
-            <h2 className="text-[#00ff66] text-lg font-mono">
-              Member Activity:{" "}
-              <span className="text-[#33ffaa]">{googleId}</span>
-            </h2>
-          </div>
-        </div>
-
-        {/* CHARTS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <motion.div className="neon-card p-4" whileHover={{ scale: 1.02 }}>
-            <h3 className="neon-title mb-2">📊 Project Changes Overview</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={summaryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-                <XAxis dataKey="project" stroke="#00ff66" />
-                <YAxis stroke="#00ff66" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="insertions" fill="#00ff66" />
-                <Bar dataKey="deletions" fill="#ff4444" />
-                <Bar dataKey="filesChanged" fill="#33ffaa" />
-              </BarChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          <motion.div className="neon-card p-4" whileHover={{ scale: 1.02 }}>
-            <h3 className="neon-title mb-2">🍩 Overall Contribution Summary</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={100}
-                  label
-                >
-                  {pieData.map((_, i) => (
-                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </motion.div>
-        </div>
-
-        {/* TIMELINE */}
-        <motion.div className="neon-card mt-8 p-4 overflow-x-auto">
-          <h3 className="neon-title mb-3">🕒 Commit Timeline</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={timelineData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="hash" stroke="#00ff66" />
-              <YAxis stroke="#00ff66" />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="changes"
-                stroke="#00ff66"
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-
-          {/* Avatars */}
-          <div className="flex items-center gap-8 mt-6 justify-center overflow-x-auto">
-            {timelineData.map((commit, i) => (
-              <motion.div
-                key={i}
-                className="flex flex-col items-center relative group"
-                whileHover={{ scale: 1.15 }}
-              >
-                <img
-                  src={`https://ui-avatars.com/api/?name=${googleId}&background=00ff66&color=000&bold=true`}
-                  alt="avatar"
-                  className="w-10 h-10 rounded-full border border-[#00ff66] shadow-lg"
-                />
-                <div className="w-[2px] h-8 bg-[#00ff66]" />
-                <div className="text-[#33ffaa] text-xs font-mono">
-                  {commit.hash}
-                </div>
-                <div className="absolute bottom-[-60px] hidden group-hover:block bg-[#000] border border-[#00ff66] rounded-md px-3 py-2 text-xs text-[#00ff66] whitespace-nowrap shadow-lg">
-                  <div>{commit.timestamp}</div>
-                  <div>Δ {commit.changes} lines</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* FILE TREE */}
-        <motion.div className="neon-card mt-8 p-4">
-          <h3 className="neon-title mb-2">📁 Changed Files Tree</h3>
-          {lastChanges.length > 0 ? (
-            <div className="font-mono text-sm">
-              {renderTree(buildTree(lastChanges))}
+            <div className="title">
+              Member Activity —{" "}
+              <span className="text-[#33ffaa] font-mono">{googleId}</span>
+              <div className="text-xs text-gray-400">Room: {roomId}</div>
             </div>
-          ) : (
-            <p className="text-gray-500">No file changes recorded.</p>
-          )}
-        </motion.div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-mono text-[#00ff66]">
+              Commits: <strong>{diffData.length}</strong>
+            </div>
+            <div className="neon-card px-3 py-2">
+              <div className="text-xs">Total</div>
+              <div className="text-sm">
+                +{totalSummary.insertions} / -{totalSummary.deletions} ·{" "}
+                {totalSummary.filesChanged} files
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* layout: left timeline, right big charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          {/* Left: timeline list */}
+          <div className="col-span-1">
+            <h3 className="neon-title mb-3">🕒 Commits (all timestamps)</h3>
+            <div className="space-y-2">
+              {diffData.length === 0 && (
+                <div className="text-sm text-gray-400">No commits found</div>
+              )}
+              {diffData.map((c) => (
+                <CommitCard key={c._id ?? c.timestamp} commit={c} />
+              ))}
+            </div>
+          </div>
+
+          {/* Middle & Right: summary & timeline chart */}
+          <div className="col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="neon-card p-4">
+                <h4 className="neon-title mb-2">📊 Projects Overview</h4>
+                <div style={{ height: 240 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={summaryData}>
+                      <CartesianGrid stroke="#111" />
+                      <XAxis dataKey="project" stroke="#00ff66" />
+                      <YAxis stroke="#00ff66" />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="insertions" fill="#00ff66" />
+                      <Bar dataKey="deletions" fill="#ff4444" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="neon-card p-4">
+                <h4 className="neon-title mb-2">🍩 Overall</h4>
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        dataKey="value"
+                        data={pieData}
+                        outerRadius={70}
+                        label
+                      >
+                        {pieData.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={["#00ff66", "#ff6666", "#33ffaa"][i % 3]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="neon-card mt-4 p-4">
+              <h4 className="neon-title mb-2">📈 Commit Timeline (changes)</h4>
+              <div style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={timelineData}>
+                    <CartesianGrid stroke="#111" />
+                    <XAxis dataKey="hash" stroke="#00ff66" />
+                    <YAxis stroke="#00ff66" />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="changes"
+                      data={timelineData.map((t) => ({
+                        changes: t.insertions - t.deletions,
+                        hash: t.hash,
+                      }))}
+                      stroke="#00ff66"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* DIFF POPUP */}
+      {/* Diff modal */}
       <AnimatePresence>
-        {selectedFile && (
+        {openDiff && (
           <motion.div
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-[#111] border border-[#00ff66] rounded-xl p-4 w-[80%] max-h-[80%] overflow-auto"
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
+              className="bg-[#0b0b0b] border border-[#00ff66] rounded-xl w-[90%] max-w-4xl max-h-[85vh] overflow-auto p-4"
+              initial={{ scale: 0.95, y: -10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: -10 }}
             >
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-[#00ff66] font-mono text-lg">
-                  {selectedFile.filePath}
-                </h3>
-                <Button
-                  variant="ghost"
-                  onClick={() => setSelectedFile(null)}
-                  className="text-[#ff4444]"
-                >
-                  Close
-                </Button>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-sm text-gray-400">File</div>
+                  <div className="text-[#33ffaa] font-mono">
+                    {openDiff.title}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setOpenDiff(null)}
+                    className="text-[#ff6666]"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-              <pre className="text-sm font-mono whitespace-pre-wrap bg-[#000] p-3 rounded-md overflow-x-auto">
-                {selectedFile.changes.split("\n").map((line, i) => {
-                  if (line.startsWith("+"))
-                    return (
-                      <div key={i} className="text-green-400">
-                        {line}
-                      </div>
-                    );
-                  if (line.startsWith("-"))
-                    return (
-                      <div key={i} className="text-red-400">
-                        {line}
-                      </div>
-                    );
-                  return <div key={i}>{line}</div>;
-                })}
-              </pre>
+
+              <div className="bg-[#000] p-3 rounded-md text-sm font-mono whitespace-pre-wrap">
+                {renderDiff(openDiff.text)}
+              </div>
             </motion.div>
           </motion.div>
         )}
