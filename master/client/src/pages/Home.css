@@ -1,122 +1,152 @@
-body {
-  background: #000;
-  color: #0f0;
-  font-family: "Courier New", monospace;
+/* Full-screen terminal look */
+.terminal-screen {
   height: 100vh;
-  margin: 0;
-  overflow: hidden;
-}
-
-.terminal-wrapper {
+  width: 100vw;
+  background-color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  color: #00ff99;
+  font-family: "Fira Code", monospace;
   position: relative;
+  overflow: hidden;
 }
 
+/* Subtle glow effect */
 .terminal-glow {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center, rgba(0, 255, 0, 0.05), transparent 70%);
-  animation: pulse 3s infinite alternate;
-  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(0, 255, 150, 0.15), transparent 70%);
+  z-index: 0;
+  filter: blur(120px);
 }
 
-@keyframes pulse {
-  from { opacity: 0.6; }
-  to { opacity: 1; }
-}
-
+/* Terminal window styling */
 .terminal-window {
-  background: #0a0a0a;
-  border: 2px solid #00ff66;
-  border-radius: 12px;
   width: 90%;
-  max-width: 700px;
-  height: 80vh;
-  box-shadow: 0 0 30px rgba(0, 255, 100, 0.4);
-  overflow-y: auto;
+  max-width: 800px;
+  background-color: rgba(0, 0, 0, 0.85);
+  border: 2px solid #00ff99;
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(0, 255, 150, 0.3);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 }
 
+/* Header bar with colored dots */
 .terminal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #111;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid #00ff66;
+  padding: 0.6rem 1rem;
+  background-color: rgba(0, 255, 100, 0.1);
+  border-bottom: 1px solid rgba(0, 255, 150, 0.3);
+  font-size: 0.9rem;
 }
 
 .dots {
   display: flex;
   gap: 6px;
 }
+
 .dot {
-  width: 12px;
-  height: 12px;
+  height: 10px;
+  width: 10px;
   border-radius: 50%;
+  display: inline-block;
 }
-.red { background: #ff5f56; }
-.yellow { background: #ffbd2e; }
-.green { background: #27c93f; }
-
-.title {
-  font-size: 0.9rem;
-  color: #0f0;
-  opacity: 0.8;
+.dot.red {
+  background: #ff5555;
+}
+.dot.yellow {
+  background: #f1fa8c;
+}
+.dot.green {
+  background: #50fa7b;
 }
 
+/* Terminal body */
 .terminal-body {
-  padding: 1rem;
+  padding: 2rem;
 }
 
+/* Prompt line with typing effect */
 .prompt-line {
-  color: #0f0;
+  margin-bottom: 2rem;
+  color: #00ff99;
   font-size: 1.1rem;
-  margin-bottom: 1rem;
 }
 
+.typing .prompt-text {
+  border-right: 2px solid #00ff99;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+/* Neon card */
 .neon-card {
-  background: rgba(0, 255, 100, 0.05);
-  border: 1px solid #00ff66;
-  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #00ff99;
   border-radius: 10px;
-  box-shadow: 0 0 20px rgba(0, 255, 100, 0.3);
+  padding: 2rem;
+  box-shadow: 0 0 20px rgba(0, 255, 150, 0.3);
   text-align: center;
-  color: #0f0;
-  margin: 1rem 0;
 }
 
-.user-card {
-  display: flex;
-  flex-direction: column;
+.neon-text h2 {
+  font-size: 1.8rem;
+  color: #00ff99;
+  margin-bottom: 0.5rem;
+}
+
+.neon-text .muted {
+  color: #80ffcc;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Google button */
+.neon-btn {
+  background: none;
+  color: #00ff99;
+  border: 1px solid #00ff99;
+  border-radius: 8px;
+  padding: 0.7rem 1.5rem;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 500;
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
+  gap: 10px;
+  transition: all 0.3s ease;
 }
 
-.avatar {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: 2px solid #00ff66;
-  box-shadow: 0 0 15px rgba(0, 255, 100, 0.3);
+.neon-btn:hover {
+  background: rgba(0, 255, 150, 0.2);
+  box-shadow: 0 0 12px #00ff99;
 }
 
-.user-info h2 {
-  margin: 0;
-  color: #0f0;
+.btn-google {
+  height: 18px;
+  width: 18px;
 }
 
-.user-info p {
-  color: #8f8;
-  font-size: 0.9rem;
+.btn-text {
+  font-size: 1rem;
 }
 
+/* Tip line */
 .hint {
-  margin-top: 1rem;
-  color: #8f8;
+  margin-top: 2rem;
+  color: #00cc88;
   font-size: 0.9rem;
+  text-align: center;
   opacity: 0.8;
 }
