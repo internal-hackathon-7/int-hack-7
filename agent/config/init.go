@@ -88,15 +88,15 @@ func StartService(projectPath string, interval int) {
 
 	for range ticker.C {
 
-		err := controller.ComputeDiff()
+		_, err := controller.ComputeDiff(projectPath)
 		if err != nil {
 			log.Panic("DIFF error")
 		}
 
-		log.Println("per interval tasks doing")
-		log.Println("project path = ", projectPath)
-		log.Println("interval = ", interval)
-		log.Println("per interval tasks done")
+		//idhar then send diff json it...to master ;)
+		log.Println("")
+		log.Println("one iteration successfull")
+		log.Println("")
 	}
 }
 
