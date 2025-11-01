@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/internal-hackathon-7/int-hack-7/agent/constants"
 	"github.com/internal-hackathon-7/int-hack-7/agent/controller"
 	"github.com/internal-hackathon-7/int-hack-7/agent/types"
 	"gopkg.in/yaml.v3"
 )
 
-const MasterURL = "https://google.com"
+// const MasterURL = "https://google.com"
 const DisplayName = "daemon"
 const DefaultProjectPath = "/Users/aditya/99-trash/dummy"
 
@@ -88,12 +89,16 @@ func StartService(projectPath string, interval int) {
 
 	for range ticker.C {
 
-		_, err := controller.ComputeDiff(projectPath)
+		diffBlob, err := controller.ComputeDiff(projectPath)
 		if err != nil {
 			log.Panic("DIFF error")
 		}
 
-		//idhar then send diff json it...to master ;)
+		log.Println("")
+		log.Printf("%#v\n", diffBlob)
+		log.Println("")
+
+		//idhar then send diff json...to master ;)
 		log.Println("")
 		log.Println("one iteration successfull")
 		log.Println("")
@@ -106,7 +111,8 @@ func PingMaster() error {
 	pingInterval := 2 * time.Second
 
 	for {
-		resp, err := http.Get(MasterURL)
+		// resp, err := http.Get(constants.MasterURL + "/ping")
+		resp, err := http.Get(constants.MasterURL)
 		if err != nil {
 			failCount++
 			fmt.Printf("[%s] Ping FAILED (%d/%d): %v\n",
@@ -116,6 +122,7 @@ func PingMaster() error {
 			if resp.StatusCode == http.StatusOK {
 				fmt.Printf("[%s] Server REACHABLE \n",
 					time.Now().Format(time.RFC3339))
+				fmt.Println("")
 				return nil
 			} else {
 				failCount++

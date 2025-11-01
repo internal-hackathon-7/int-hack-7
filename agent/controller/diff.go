@@ -12,12 +12,13 @@ func ComputeDiff(projectPath string) (types.DiffBlob, error) {
 
 	oldHash, err := GetLastHash(projectPath)
 	if err != nil {
-		log.Panic("error finding last hash")
+		log.Print("error finding last hash")
 		return diffBlob, nil
 	}
+
 	newHash, err := GetNewHash(projectPath)
 	if err != nil {
-		log.Panic("error getting new hash")
+		log.Print("error getting new hash")
 		return diffBlob, nil
 	}
 

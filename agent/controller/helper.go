@@ -1,9 +1,60 @@
 package controller
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/go-git/go-git/v5/plumbing"
+	lib "github.com/internal-hackathon-7/int-hack-7/agent/lib/git"
+)
+
 func GetLastHash(projectPath string) (string, error) {
-	return "12d9b04fc2d0f2b36f9f5a9171f02b7840dbdd79", nil
+	stateFile := filepath.Join(projectPath, ".daemon", "state.txt")
+
+	f, err := os.Open(stateFile)
+	if err != nil {
+		// File not found or unreadable — fallback to ZeroHash
+		return plumbing.ZeroHash.String(), nil
+	}
+	defer f.Close()
+
+	var lastLine string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			lastLine = line
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return plumbing.ZeroHash.String(), nil
+	}
+
+	if lastLine == "" {
+		return plumbing.ZeroHash.String(), nil
+	}
+
+	parts := strings.Fields(lastLine)
+	if len(parts) < 2 {
+		return plumbing.ZeroHash.String(), nil
+	}
+
+	hash := strings.TrimSpace(parts[len(parts)-1])
+	if hash == "" {
+		return plumbing.ZeroHash.String(), nil
+	}
+
+	return hash, nil
 }
 
 func GetNewHash(projectPath string) (string, error) {
-	return "85f0c61094078e71f693d44125acdf8acb333d0c", nil
+	hash, err := lib.CommitSnapshot(projectPath)
+	if err != nil {
+		return plumbing.ZeroHash.String(), fmt.Errorf("error taking the snapshot : %v", err)
+	}
+	return hash.String(), nil
 }

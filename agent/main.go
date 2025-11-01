@@ -8,6 +8,8 @@ import (
 	"os/exec"
 
 	"github.com/internal-hackathon-7/int-hack-7/agent/config"
+	"github.com/internal-hackathon-7/int-hack-7/agent/constants"
+	"github.com/joho/godotenv"
 )
 
 // DELETE IN PROD
@@ -19,6 +21,13 @@ func main() {
 		fmt.Println("Commands: init")
 		return
 	}
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
+	constants.MasterURL = os.Getenv("MasterURL")
 
 	switch os.Args[1] {
 	case "init":
@@ -84,14 +93,23 @@ func main() {
 		log.Printf("Monitoring path: %s\n", *projectPath)
 		log.Printf("Interval: %d seconds\n", *interval)
 
-		// --- WRITE PID FILE ---
+		// --- append to PID FILE ---
 		pidFilePath := fmt.Sprintf("%s/agent.pid", daemonDir)
 		pid := os.Getpid()
 
-		if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
-			log.Fatalf("Failed to write PID file: %v", err)
+		// Open or create the file in append mode
+		f, err := os.OpenFile(pidFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalf("Failed to open PID file: %v", err)
 		}
-		log.Printf("PID %d written to %s\n", pid, pidFilePath)
+		defer f.Close()
+
+		// Write PID followed by space (kill friendly)
+		if _, err := f.WriteString(fmt.Sprintf("%d\n", pid)); err != nil {
+			log.Fatalf("Failed to write PID to file: %v", err)
+		}
+
+		log.Printf("PID %d appended to %s\n", pid, pidFilePath)
 
 		// --- START SERVICE ---
 		config.StartService(*projectPath, *interval)

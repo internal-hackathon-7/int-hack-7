@@ -2,10 +2,8 @@ package lib
 
 import (
 	"fmt"
-	"log"
 	"time"
 
-	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/utils/merkletrie"
@@ -17,7 +15,7 @@ func DiffWithHash(projectPath, oldHash, newHash string) (types.DiffBlob, error) 
 	var diffBlob types.DiffBlob
 
 	// Open the repository
-	repo, err := git.PlainOpen(projectPath)
+	repo, err := FindRepo(projectPath)
 	if err != nil {
 		return diffBlob, fmt.Errorf("error opening repo: %w", err)
 	}
@@ -52,10 +50,6 @@ func DiffWithHash(projectPath, oldHash, newHash string) (types.DiffBlob, error) 
 	if err != nil {
 		return diffBlob, fmt.Errorf("error making change json : %w", err)
 	}
-
-	log.Println("")
-	log.Printf("%#v\n", diffBlob)
-	log.Println("")
 
 	return diffBlob, nil
 }
