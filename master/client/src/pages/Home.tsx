@@ -11,7 +11,7 @@ import { io, Socket } from "socket.io-client";
 import { motion } from "framer-motion";
 import { LogOut } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { useNavigate } from "react-router-dom"; // ✅ Added for navigation
+import { useNavigate } from "react-router-dom";
 import "./Home.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -21,6 +21,7 @@ interface User {
   name: string;
   email: string;
   picture: string;
+  sub?: string;
 }
 
 export default function HomePage(): JSX.Element {
@@ -33,43 +34,84 @@ export default function HomePage(): JSX.Element {
 
   const socketRef = useRef<Socket | null>(null);
   const terminalRef = useRef<HTMLDivElement | null>(null);
-  const navigate = useNavigate(); // ✅ Router hook
+  const navigate = useNavigate();
 
-  // ─────────────────────────────── LOGGING ───────────────────────────────
+  // 🧾 log helper
   const log = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString();
     setLogs((prev) => [...prev, `[${time}] ${msg}`]);
   }, []);
 
-  // ─────────────────────────────── SOCKET SETUP ───────────────────────────────
+  // 🧭 Save token from URL
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      localStorage.setItem("session_token", token);
+      window.history.replaceState({}, document.title, "/home");
+    }
+  }, []);
+
+  // 🧠 Fetch user first
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Not logged in");
+        const data = await res.json();
+        if (data?.sub) localStorage.setItem("member_id", data.sub);
+        setUser(data);
+      } catch {
+        window.location.href = `${location.origin}/`;
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // 🔌 Connect socket AFTER we know the user
+  useEffect(() => {
+    if (!user?.sub) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      log("⚠️ No session token found.");
+      return;
+    }
+
     const socket = io(WS_BASE, {
       transports: ["websocket"],
       withCredentials: true,
+      auth: { token },
     });
-
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setSocketConnected(true);
-      log(`✅ Connected to Socket.IO (${socket.id})`);
+      log(`✅ Connected as Google user: ${user.sub}`);
     });
 
     socket.on("disconnect", () => {
       setSocketConnected(false);
-      log("🔴 Socket.IO disconnected");
+      log("🔴 Disconnected from server");
+    });
+
+    socket.on("connect_error", (err) => {
+      log(`❌ Connection error: ${err.message}`);
     });
 
     socket.on("room_created", ({ roomId, memberId }) => {
       setRoomCode(roomId);
-      log(`🏠 Room created: ${roomId} | Member ID: ${memberId}`);
-      navigate(`/room/${roomId}`); // ✅ Auto navigate to room
+      log(`🏠 Room created: ${roomId} | Google sub: ${memberId}`);
+      navigate(`/room/${roomId}`);
     });
 
     socket.on("room_joined", ({ roomId, memberId }) => {
       setRoomCode(roomId);
-      log(`🙋 Joined Room: ${roomId} | Member ID: ${memberId}`);
-      navigate(`/room/${roomId}`); // ✅ Auto navigate when joining
+      log(`🙋 Joined Room: ${roomId} | Google sub: ${memberId}`);
+      navigate(`/room/${roomId}`);
     });
 
     socket.on("member_joined", ({ roomId, memberId }) => {
@@ -84,47 +126,29 @@ export default function HomePage(): JSX.Element {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [log, navigate]);
+  }, [user?.sub, log, navigate]);
 
-  // ─────────────────────────────── AUTO SCROLL ───────────────────────────────
+  // 🖥️ Scroll logs automatically
   useEffect(() => {
     const t = terminalRef.current;
     if (t) t.scrollTop = t.scrollHeight;
   }, [logs]);
 
-  // ─────────────────────────────── FETCH USER ───────────────────────────────
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/me`, {
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error("Not logged in");
-        const data = await res.json();
-        setUser(data);
-      } catch {
-        window.location.href = `${location.origin}/`;
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, []);
-
-  // ─────────────────────────────── SOCKET ACTIONS ───────────────────────────────
   const createRoom = () => {
-    socketRef.current?.emit("create_room");
+    if (!socketRef.current) return log("⚠️ Not connected to server");
+    socketRef.current.emit("create_room");
   };
 
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
-    if (!code) return log("⚠️ Please enter a valid room code");
-    socketRef.current?.emit("join_room", code);
+    if (!code) return log("⚠️ Enter a valid room code");
+    if (!socketRef.current) return log("⚠️ Not connected to server");
+    socketRef.current.emit("join_room", code);
   };
 
-  // ─────────────────────────────── LOGOUT ───────────────────────────────
   const handleLogout = async () => {
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("member_id");
     await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       credentials: "include",
@@ -132,8 +156,7 @@ export default function HomePage(): JSX.Element {
     window.location.href = `${location.origin}/`;
   };
 
-  // ─────────────────────────────── RENDER ───────────────────────────────
-  if (loading) {
+  if (loading)
     return (
       <div className="terminal-wrapper">
         <motion.div
@@ -143,7 +166,6 @@ export default function HomePage(): JSX.Element {
         />
       </div>
     );
-  }
 
   if (!user) return <></>;
 
@@ -151,7 +173,6 @@ export default function HomePage(): JSX.Element {
     <div className="terminal-screen full">
       <div className="terminal-glow" />
       <div className="terminal-window full">
-        {/* HEADER */}
         <div className="terminal-header">
           <div className="dots">
             <span className="dot red" />
@@ -170,9 +191,7 @@ export default function HomePage(): JSX.Element {
           </Button>
         </div>
 
-        {/* BODY */}
         <div className="terminal-body-grid" ref={terminalRef}>
-          {/* LEFT: User info */}
           <div className="user-card neon-card">
             <img src={user.picture} alt={user.name} className="avatar" />
             <div className="user-info">
@@ -181,7 +200,6 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
-          {/* CENTER: Room controls */}
           <div className="neon-card room-control">
             <h3 className="neon-title">⚡ Create or Join a Room</h3>
 
@@ -222,7 +240,6 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
-          {/* RIGHT: Logs */}
           <div className="neon-terminal-logs">
             <div className="terminal-header-bar">📜 Live Logs</div>
             <pre className="terminal-log-output">

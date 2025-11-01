@@ -1,78 +1,117 @@
 import { Server, Socket } from "socket.io";
+import jwt from "jsonwebtoken";
+import { Room } from "../model/Room.ts";
 
-interface Member {
-  memberId: string;
-}
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretdevkey";
 
-interface RoomData {
-  members: Member[];
-}
+export function setupWebSocket(server: any) {
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
+      credentials: true,
+    },
+  });
 
-const rooms = new Map<string, RoomData>();
+  // ✅ AUTH middleware
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error("Missing token"));
 
-export function setupSocketHandlers(io: Server) {
-  io.on("connection", (socket: Socket) => {
-    console.log(`🟢 New client connected: ${socket.id}`);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        sub: string;
+        name?: string;
+      };
+      (socket as any).googleId = decoded.sub;
+      (socket as any).userName = decoded.name || decoded.sub;
+      next();
+    } catch (err) {
+      console.error("❌ Invalid JWT:", err);
+      next(new Error("Authentication error"));
+    }
+  });
 
-    // Let frontend know its own socket ID
-    socket.emit("connected", { socketId: socket.id });
+  // ✅ Main connection logic
+  io.on("connection", async (socket: Socket) => {
+    const googleId = (socket as any).googleId;
+    const userName = (socket as any).userName;
 
-    // ───────────────────────────── CREATE ROOM ─────────────────────────────
-    socket.on("create_room", () => {
-      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    console.log(`🟢 Connected: ${googleId}`);
 
-      socket.join(roomId);
-      console.log(`🏠 Room ${roomId} created by ${socket.id}`);
+    socket.emit("connected", { googleId, userName });
 
-      // Create room data
-      const newRoom: RoomData = { members: [{ memberId: socket.id }] };
-      rooms.set(roomId, newRoom);
+    // Helper → send all members of room
+    const emitMembers = async (roomId: string) => {
+      const room = await Room.findOne({ roomId });
+      if (!room) return;
+      const members = room.members.map((m) => ({ memberId: m }));
+      io.to(roomId).emit("members_update", members);
+      console.log(`📡 Room ${roomId} members:`, members);
+    };
 
-      // Notify the creator
-      socket.emit("room_created", { roomId, memberId: socket.id });
+    // --- CREATE ROOM ---
+    socket.on("create_room", async () => {
+      try {
+        const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const room = new Room({ roomId, members: [googleId] });
+        await room.save();
 
-      // Send updated members list to everyone in room
-      io.to(roomId).emit("members_update", newRoom.members);
-    });
+        socket.join(roomId);
+        socket.emit("room_created", { roomId });
+        console.log(`🏠 ${googleId} created room ${roomId}`);
 
-    // ───────────────────────────── JOIN ROOM ─────────────────────────────
-    socket.on("join_room", (roomId: string) => {
-      let room = rooms.get(roomId);
-
-      // If the room doesn't exist, create it dynamically
-      if (!room) {
-        console.log(`⚙️ Room ${roomId} not found — creating new one.`);
-        room = { members: [] };
-        rooms.set(roomId, room);
+        await emitMembers(roomId);
+      } catch (err) {
+        console.error("❌ create_room error:", err);
+        socket.emit("error_message", "Failed to create room");
       }
-
-      socket.join(roomId);
-      room.members.push({ memberId: socket.id });
-      console.log(`🙋 ${socket.id} joined room ${roomId}`);
-
-      socket.emit("room_joined", { roomId, memberId: socket.id });
-      io.to(roomId).emit("members_update", room.members);
     });
 
-    // ───────────────────────────── DISCONNECT ─────────────────────────────
-    socket.on("disconnect", () => {
-      console.log(`🔴 ${socket.id} disconnected`);
+    // --- JOIN ROOM ---
+    socket.on("join_room", async (roomId: string) => {
+      try {
+        const room = await Room.findOne({ roomId });
+        if (!room) {
+          console.log("❌ Room not found:", roomId);
+          socket.emit("error_message", "Room not found");
+          return;
+        }
 
-      // Remove user from all rooms they were part of
-      for (const [roomId, room] of rooms.entries()) {
-        const before = room.members.length;
-        room.members = room.members.filter((m) => m.memberId !== socket.id);
+        // Add user to members if not present
+        if (!room.members.includes(googleId)) {
+          room.members.push(googleId);
+          await room.save();
+        }
 
-        if (room.members.length < before) {
-          console.log(`👋 ${socket.id} left room ${roomId}`);
-          io.to(roomId).emit("members_update", room.members);
+        socket.join(roomId);
+        socket.emit("room_joined", { roomId });
+        console.log(`🙋 ${googleId} joined ${roomId}`);
 
-          // If room is empty, delete it
+        await emitMembers(roomId);
+      } catch (err) {
+        console.error("❌ join_room error:", err);
+        socket.emit("error_message", "Failed to join room");
+      }
+    });
+
+    // --- DISCONNECT ---
+    socket.on("disconnect", async () => {
+      console.log(`🔴 ${googleId} disconnected`);
+      try {
+        const rooms = await Room.find({ members: googleId });
+
+        for (const room of rooms) {
+          room.members = room.members.filter((id) => id !== googleId);
           if (room.members.length === 0) {
-            rooms.delete(roomId);
-            console.log(`🗑️ Room ${roomId} deleted (empty)`);
+            await Room.deleteOne({ roomId: room.roomId });
+            console.log(`🗑️ Room ${room.roomId} deleted`);
+          } else {
+            await room.save();
+            await emitMembers(room.roomId);
           }
         }
+      } catch (err) {
+        console.error("❌ Disconnect error:", err);
       }
     });
   });

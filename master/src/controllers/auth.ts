@@ -9,7 +9,7 @@ interface GoogleIDToken {
   name: string;
   email: string;
   picture: string;
-  sub: string;
+  sub: string; // Google user ID
 }
 
 interface GoogleTokenResponse {
@@ -86,32 +86,41 @@ export async function handleGoogleCallback(req: Request, res: Response) {
 
     // Decode Google ID token
     const userInfo = jwtDecode<GoogleIDToken>(tokenData.id_token);
+    console.log("✅ Google Login:", {
+      name: userInfo.name,
+      email: userInfo.email,
+      sub: userInfo.sub,
+    });
 
     // Sign your own JWT for session
     const sessionToken = jwt.sign(
       {
-        sub: userInfo.sub,
+        sub: userInfo.sub, // Google ID (acts as memberId)
         name: userInfo.name,
         email: userInfo.email,
         picture: userInfo.picture,
       },
       JWT_SECRET,
-      { expiresIn: "7d" } // 7-day session
+      { expiresIn: "7d" }
     );
 
-    // Set cookie (IMPORTANT)
+    // Set cookie for secure API use
     res.cookie("session_token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/", // <--- ensure cookie is sent for all routes
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    // Redirect to frontend
-    return res.redirect(FRONTEND_REDIRECT_URI);
+    // Redirect to frontend with token (for socket.io use)
+    const redirectUrl = `${FRONTEND_REDIRECT_URI}?token=${encodeURIComponent(
+      sessionToken
+    )}`;
+
+    return res.redirect(redirectUrl);
   } catch (err) {
-    console.error("Google OAuth callback error:", err);
+    console.error("❌ Google OAuth callback error:", err);
     res.status(500).json({ error: "OAuth callback failed." });
   }
 }
@@ -133,7 +142,7 @@ export function getUserInfo(req: Request, res: Response) {
   }
 }
 
-// === STEP 4: Logout route (optional) ===
+// === STEP 4: Logout route ===
 export function logout(req: Request, res: Response) {
   res.clearCookie("session_token", { path: "/" });
   res.json({ success: true });
