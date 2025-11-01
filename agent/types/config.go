@@ -8,4 +8,6 @@ type ProjectConfig struct {
 	// WatchDirs       []string `yaml:"watch_dirs"`
 	ProjectPath  string   `yaml:"project_path"`
 	DaemonIgnore []string `yaml:"daemon_ignore"`
+	EmailID      string   `yaml:"email_id"`
+	DefaultShell string   `yaml:"default_shell"`
 }

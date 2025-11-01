@@ -34,7 +34,7 @@ func main() {
 		if err := config.PingMaster(); err != nil {
 			log.Fatal("Connection NOT established! Service down")
 		}
-		projectPath, interval, err := config.InitCommand()
+		projectPath, interval, emailID, err := config.InitCommand()
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
@@ -49,6 +49,7 @@ func main() {
 			"run",
 			"-path", projectPath,
 			"-interval", fmt.Sprintf("%d", interval),
+			"-email", emailID,
 		)
 
 		// detach from terminal (run in background)
@@ -68,6 +69,7 @@ func main() {
 		initCmd := flag.NewFlagSet("run", flag.ExitOnError)
 		projectPath := initCmd.String("path", ".", "Path to the project directory to monitor")
 		interval := initCmd.Int("interval", 10, "Polling interval in seconds (integer only)")
+		email := initCmd.String("email", "", "Email address for identification or notifications")
 
 		if err := initCmd.Parse(os.Args[2:]); err != nil {
 			log.Fatal(err)
@@ -90,6 +92,7 @@ func main() {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 		log.Println("Agent starting up...")
+		log.Println("email :", email)
 		log.Printf("Monitoring path: %s\n", *projectPath)
 		log.Printf("Interval: %d seconds\n", *interval)
 
@@ -97,19 +100,27 @@ func main() {
 		pidFilePath := fmt.Sprintf("%s/agent.pid", daemonDir)
 		pid := os.Getpid()
 
-		// Open or create the file in append mode
-		f, err := os.OpenFile(pidFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		// Open (or create) the file, wiping any previous content
+		f, err := os.OpenFile(pidFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Fatalf("Failed to open PID file: %v", err)
 		}
 		defer f.Close()
 
-		// Write PID followed by space (kill friendly)
+		// Write the PID (kill friendly)
 		if _, err := f.WriteString(fmt.Sprintf("%d\n", pid)); err != nil {
 			log.Fatalf("Failed to write PID to file: %v", err)
 		}
 
-		log.Printf("PID %d appended to %s\n", pid, pidFilePath)
+		log.Printf("PID %d written fresh to %s\n", pid, pidFilePath)
+
+		if err := config.EnsureGitRepo(*projectPath); err != nil {
+			log.Printf("Warning: could not get GIT : %v\n", err)
+		}
+
+		if err := config.EnsureDaemonInGitignore(*projectPath); err != nil {
+			log.Printf("Warning: could not update .gitignore: %v\n", err)
+		}
 
 		// --- START SERVICE ---
 		config.StartService(*projectPath, *interval)
