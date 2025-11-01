@@ -69,7 +69,8 @@ func main() {
 		initCmd := flag.NewFlagSet("run", flag.ExitOnError)
 		projectPath := initCmd.String("path", ".", "Path to the project directory to monitor")
 		interval := initCmd.Int("interval", 10, "Polling interval in seconds (integer only)")
-		email := initCmd.String("email", "", "Email address for identification or notifications")
+		emailPtr := initCmd.String("email", "", "Email address for identification or notifications")
+		email := *emailPtr
 
 		if err := initCmd.Parse(os.Args[2:]); err != nil {
 			log.Fatal(err)
