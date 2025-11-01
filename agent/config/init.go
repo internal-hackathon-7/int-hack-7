@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/internal-hackathon-7/int-hack-7/agent/controller"
 	"github.com/internal-hackathon-7/int-hack-7/agent/types"
 	"gopkg.in/yaml.v3"
 )
@@ -86,6 +87,12 @@ func StartService(projectPath string, interval int) {
 	defer ticker.Stop()
 
 	for range ticker.C {
+
+		err := controller.ComputeDiff()
+		if err != nil {
+			log.Panic("DIFF error")
+		}
+
 		log.Println("per interval tasks doing")
 		log.Println("project path = ", projectPath)
 		log.Println("interval = ", interval)
