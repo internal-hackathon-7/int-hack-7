@@ -53,11 +53,19 @@ func StartService(projectPath string, interval int) {
 }
 
 func ConnectRoom(roomID string, emailID string) (interval int, err error) {
-	ans := 5
-	//api call to connect to room
-	//also send email to identify user.
-	//asks master for the interval
-	//returns interval (seconds)
+	ans := 20
+
+	payload := &types.LoginPayload{
+		RoomID: roomID,
+		Email:  emailID,
+	}
+
+	url := constants.MasterURL + "/daemon/joinRoom"
+	err = controller.PostAndCheck(url, payload)
+	if err != nil {
+		return 0, fmt.Errorf("=== Login Failed READ INSTRUCTIONS ===\n%v", err)
+	}
+
 	return ans, nil
 }
 
@@ -70,7 +78,7 @@ func InitCommand() (string, int, string, error) {
 
 	interval, err := ConnectRoom(roomID, emailID)
 	if err != nil {
-		log.Fatalf("Room ID [%v] NOT FOUND", roomID)
+		log.Fatalf("error in joining [%v], %v: ", roomID, err)
 	}
 
 	projectPath := prompt("Enter the project path to monitor", DefaultProjectPath)
@@ -108,8 +116,7 @@ func PingMaster() error {
 	pingInterval := 2 * time.Second
 
 	for {
-		// resp, err := http.Get(constants.MasterURL + "/ping")
-		resp, err := http.Get(constants.MasterURL)
+		resp, err := http.Get(constants.MasterURL + "/ping")
 		if err != nil {
 			failCount++
 			fmt.Printf("[%s] Ping FAILED (%d/%d): %v\n",
