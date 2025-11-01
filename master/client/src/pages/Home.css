@@ -215,3 +215,30 @@
   margin-top: 1.2rem;
   font-size: 0.85rem;
 }
+.members-card {
+  margin: 2rem auto;
+  max-width: 500px;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.members-list {
+  list-style: none;
+  margin-top: 1rem;
+  padding: 0;
+}
+
+.member-item {
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid #00ff66;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  color: #00ff66;
+  font-weight: 500;
+  transition: transform 0.2s ease;
+}
+
+.member-item:hover {
+  transform: scale(1.02);
+}

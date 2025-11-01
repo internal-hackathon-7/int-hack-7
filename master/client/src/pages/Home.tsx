@@ -11,6 +11,7 @@ import { io, Socket } from "socket.io-client";
 import { motion } from "framer-motion";
 import { LogOut } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { useNavigate } from "react-router-dom"; // ✅ Added for navigation
 import "./Home.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -32,6 +33,7 @@ export default function HomePage(): JSX.Element {
 
   const socketRef = useRef<Socket | null>(null);
   const terminalRef = useRef<HTMLDivElement | null>(null);
+  const navigate = useNavigate(); // ✅ Router hook
 
   // ─────────────────────────────── LOGGING ───────────────────────────────
   const log = useCallback((msg: string) => {
@@ -58,14 +60,20 @@ export default function HomePage(): JSX.Element {
       log("🔴 Socket.IO disconnected");
     });
 
-    socket.on("room_created", (roomId: string) => {
+    socket.on("room_created", ({ roomId, memberId }) => {
       setRoomCode(roomId);
-      log(`🏠 Room created: ${roomId}`);
+      log(`🏠 Room created: ${roomId} | Member ID: ${memberId}`);
+      navigate(`/room/${roomId}`); // ✅ Auto navigate to room
     });
 
-    socket.on("room_joined", (roomId: string) => {
+    socket.on("room_joined", ({ roomId, memberId }) => {
       setRoomCode(roomId);
-      log(`🙋 Joined Room: ${roomId}`);
+      log(`🙋 Joined Room: ${roomId} | Member ID: ${memberId}`);
+      navigate(`/room/${roomId}`); // ✅ Auto navigate when joining
+    });
+
+    socket.on("member_joined", ({ roomId, memberId }) => {
+      log(`🧩 New member joined room ${roomId}: ${memberId}`);
     });
 
     socket.on("error_message", (msg: string) => {
@@ -76,7 +84,7 @@ export default function HomePage(): JSX.Element {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [log]);
+  }, [log, navigate]);
 
   // ─────────────────────────────── AUTO SCROLL ───────────────────────────────
   useEffect(() => {
