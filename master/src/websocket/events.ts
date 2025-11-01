@@ -86,28 +86,68 @@ export function setupSocketHandlers(io: Server) {
 
     socket.on("disconnect", async () => {
       console.log(`🔴 ${googleId} disconnected`);
+
       try {
         const rooms = await Room.find({ members: googleId });
+
         for (const room of rooms) {
-          room.members = room.members.filter((id) => id !== googleId);
-          if (room.members.length === 0) {
-            // wait 30 seconds before deleting to allow reconnect
-            setTimeout(async () => {
-              const checkRoom = await Room.findOne({ roomId: room.roomId });
-              if (checkRoom && checkRoom.members.length === 0) {
-                await Room.deleteOne({ roomId: room.roomId });
-                console.log(`🗑️ Deleted inactive room ${room.roomId}`);
-              }
-            }, 30000);
-          } else {
-            await room.save();
-            console.log("✅ Saved room:", room);
-            await emitMembers(room.roomId);
-          }
+          // Delay removal to allow quick reconnect
+          setTimeout(async () => {
+            // Check if user has reconnected (active socket)
+            const activeSockets = await io.fetchSockets();
+            const stillOnline = activeSockets.some(
+              (s) => (s as any).googleId === googleId
+            );
+
+            if (stillOnline) {
+              console.log(
+                `🟢 ${googleId} reconnected quickly, keeping in room`
+              );
+              return;
+            }
+
+            // If user didn’t reconnect — remove them safely
+            const currentRoom = await Room.findOne({ roomId: room.roomId });
+            if (!currentRoom) return;
+
+            currentRoom.members = currentRoom.members.filter(
+              (id) => id !== googleId
+            );
+
+            if (currentRoom.members.length === 0) {
+              await Room.deleteOne({ roomId: currentRoom.roomId });
+              console.log(`🗑️ Deleted inactive room ${currentRoom.roomId}`);
+            } else {
+              await currentRoom.save();
+              console.log(`✅ Updated members for room ${currentRoom.roomId}`);
+              await emitMembers(currentRoom.roomId);
+            }
+          }, 15000); // ⏱ 15s delay before cleanup
         }
       } catch (err) {
         console.error("❌ Disconnect cleanup error:", err);
       }
     });
+    socket.on("leave_room", async (roomId: string) => {
+      try {
+        const room = await Room.findOne({ roomId });
+        if (!room) return;
+
+        room.members = room.members.filter((id) => id !== googleId);
+        await room.save();
+
+        socket.leave(roomId);
+        console.log(`👋 ${googleId} left ${roomId}`);
+        await emitMembers(roomId);
+
+        if (room.members.length === 0) {
+          await Room.deleteOne({ roomId });
+          console.log(`🗑️ Deleted empty room ${roomId}`);
+        }
+      } catch (err) {
+        console.error("❌ Error leaving room:", err);
+      }
+    });
+
   });
 }

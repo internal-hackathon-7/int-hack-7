@@ -5,8 +5,9 @@ import express, { type Request, type Response } from "express";
 import http from "http";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import authRoutes from "./routes/authRoutes.js";
-import { setupWebSocket } from "./websocket/index.js";
+import authRoutes from "./routes/authRoutes.ts";
+import daemonRoutes from "./routes/daemonRoutes.ts";
+import { setupWebSocket } from "./websocket/index.ts";
 import { connectDB } from "./database/db.ts";
 import mongoose from "mongoose";
 
@@ -43,6 +44,8 @@ app.post("/echo", (req: Request, res: Response) => {
 
 // ✅ Auth routes (Google OAuth)
 app.use("/auth", authRoutes);
+
+app.use("/daemon", daemonRoutes);
 
 // ✅ Setup Socket.IO
 const server = http.createServer(app);

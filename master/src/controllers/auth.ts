@@ -2,6 +2,7 @@ import { type Request, type Response } from "express";
 import fetch from "node-fetch";
 import jwt from "jsonwebtoken";
 import { jwtDecode } from "jwt-decode";
+import { User } from "../model/User.ts";
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretdevkey";
 
@@ -92,10 +93,21 @@ export async function handleGoogleCallback(req: Request, res: Response) {
       sub: userInfo.sub,
     });
 
-    // Sign your own JWT for session
+    const member = await User.findOneAndUpdate(
+      { googleId: userInfo.sub },
+      {
+        name: userInfo.name,
+        email: userInfo.email,
+        picture: userInfo.picture,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    console.log("✅ User saved:", member);
+
     const sessionToken = jwt.sign(
       {
-        sub: userInfo.sub, // Google ID (acts as memberId)
+        sub: userInfo.sub,
         name: userInfo.name,
         email: userInfo.email,
         picture: userInfo.picture,

@@ -1,16 +1,20 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LogOut } from "lucide-react";
 import "./Home.css";
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "http://localhost:3000";
-
 interface Member {
-  memberId: string; // Google sub
+  memberId: string;
+}
+
+declare global {
+  interface Window {
+    globalSocket?: Socket;
+  }
 }
 
 export default function RoomPage() {
@@ -21,77 +25,124 @@ export default function RoomPage() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("session_token");
-    if (!token) {
-      console.warn("⚠️ No token found, redirecting...");
-      navigate("/");
+    const s = window.globalSocket;
+
+    if (!s) {
+      console.warn("⚠️ No global socket found, redirecting to home...");
+      navigate("/home");
       return;
     }
 
-    const s = io(WS_BASE, {
-      transports: ["websocket"],
-      withCredentials: true,
-      auth: { token },
-    });
-
     setSocket(s);
+    setConnected(s.connected);
 
-    s.on("connect", () => {
-      setConnected(true);
-      console.log("✅ Connected to server");
-      if (roomId) {
-        s.emit("join_room", roomId);
-        console.log(`Joining room ${roomId}`);
-      }
-    });
+    // 🧩 Join the room when component mounts
+    if (roomId) {
+      console.log(`📡 Joining room ${roomId}`);
+      s.emit("join_room", roomId);
+    }
 
+    // 🧭 Listen for member updates
     s.on("members_update", (list: Member[]) => {
       console.log("📜 Members update:", list);
       setMembers(list);
     });
 
-    s.on("disconnect", () => {
-      setConnected(false);
-      console.log("🔴 Disconnected");
-    });
+    // 🧲 Handle connection status
+    const handleConnect = () => {
+      console.log("✅ Socket reconnected");
+      setConnected(true);
+      // Auto-rejoin if reconnected
+      if (roomId) {
+        console.log(`🔁 Rejoining room ${roomId}`);
+        s.emit("join_room", roomId);
+      }
+    };
 
-    s.on("connect_error", (err) => {
-      console.error("❌ Socket connection error:", err.message);
-    });
+    const handleDisconnect = () => {
+      console.log("🔴 Socket disconnected");
+      setConnected(false);
+    };
+
+    s.on("connect", handleConnect);
+    s.on("disconnect", handleDisconnect);
 
     return () => {
-      s.disconnect();
-      console.log("Socket disconnected");
+      // ❌ Do NOT emit leave_room when navigating away
+      // This prevents removing the member from the room
+      console.log(`🏁 Unmounting RoomPage for ${roomId}`);
+      s.off("members_update");
+      s.off("connect", handleConnect);
+      s.off("disconnect", handleDisconnect);
     };
   }, [roomId, navigate]);
+
+  const handleBack = () => {
+    // just navigate — don't emit leave_room
+    navigate("/home");
+  };
+
+  const handleLeaveRoom = () => {
+    if (socket && roomId) {
+      socket.emit("leave_room", roomId);
+      console.log(`👋 User manually left room ${roomId}`);
+    }
+    navigate("/home");
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("member_id");
+    window.globalSocket?.disconnect();
+    window.globalSocket = undefined;
+    navigate("/");
+  };
 
   return (
     <div className="terminal-screen full">
       <div className="terminal-glow" />
       <div className="terminal-window full">
         {/* HEADER */}
-        <div className="terminal-header">
-          <Button
-            onClick={() => navigate("/home")}
-            variant="ghost"
-            className="text-[#00ff66] hover:text-[#33ffaa]"
-          >
-            <ArrowLeft size={18} /> Back
-          </Button>
-          <div className="title">
-            Room: {roomId}{" "}
-            <span className={connected ? "text-green-400" : "text-red-400"}>
-              {connected ? "● Connected" : "○ Offline"}
-            </span>
+        <div className="terminal-header flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleBack}
+              variant="ghost"
+              className="text-[#00ff66] hover:text-[#33ffaa]"
+            >
+              <ArrowLeft size={18} /> Back
+            </Button>
+            <div className="title">
+              Room: {roomId}{" "}
+              <span className={connected ? "text-green-400" : "text-red-400"}>
+                {connected ? "● Connected" : "○ Offline"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleLeaveRoom}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Leave Room
+            </Button>
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              className="text-[#00ff66] hover:text-[#33ffaa]"
+            >
+              <LogOut size={18} />
+            </Button>
           </div>
         </div>
 
         {/* MEMBERS LIST */}
-        <div className="neon-card members-card">
+        <div className="neon-card members-card mt-4">
           <h2 className="neon-title">👥 Members</h2>
           <motion.ul layout className="members-list">
             {members.length === 0 ? (
-              <p>No members yet...</p>
+              <p className="text-gray-400 text-sm">No members yet...</p>
             ) : (
               members.map((m) => (
                 <motion.li
@@ -104,9 +155,7 @@ export default function RoomPage() {
                   <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white">
                     {m.memberId.slice(0, 3)}...
                   </div>
-                  <span className="text-sm text-gray-300">
-                    {m.memberId}
-                  </span>
+                  <span className="text-sm text-gray-300">{m.memberId}</span>
                 </motion.li>
               ))
             )}

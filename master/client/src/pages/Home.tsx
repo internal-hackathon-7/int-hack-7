@@ -17,11 +17,22 @@ import "./Home.css";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const WS_BASE = import.meta.env.VITE_WS_BASE_URL || "http://localhost:3000";
 
+declare global {
+  interface Window {
+    globalSocket?: Socket;
+  }
+}
+
 interface User {
   name: string;
   email: string;
   picture: string;
-  sub?: string;
+  sub?: string; // googleId
+}
+
+interface Room {
+  roomId: string;
+  members: string[];
 }
 
 export default function HomePage(): JSX.Element {
@@ -29,10 +40,9 @@ export default function HomePage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
   const [roomCode, setRoomCode] = useState<string | null>(null);
-  const [joinCode, setJoinCode] = useState("");
+  const [roomsJoined, setRoomsJoined] = useState<Room[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
 
-  const socketRef = useRef<Socket | null>(null);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
@@ -52,7 +62,7 @@ export default function HomePage(): JSX.Element {
     }
   }, []);
 
-  // 🧠 Fetch user first
+  // 🧠 Fetch user
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -72,83 +82,87 @@ export default function HomePage(): JSX.Element {
     fetchUser();
   }, []);
 
-  // 🔌 Connect socket AFTER we know the user
+  // 🔌 Connect socket globally AFTER user
   useEffect(() => {
     if (!user?.sub) return;
-    const token = localStorage.getItem("session_token");
-    if (!token) {
-      log("⚠️ No session token found.");
-      return;
+
+    if (!window.globalSocket) {
+      const token = localStorage.getItem("session_token");
+      if (!token) return log("⚠️ No session token found.");
+
+      const socket = io(WS_BASE, {
+        transports: ["websocket"],
+        withCredentials: true,
+        auth: { token },
+        autoConnect: true,
+        reconnection: true,
+      });
+
+      window.globalSocket = socket;
+
+      socket.on("connect", () => {
+        setSocketConnected(true);
+        log(`✅ Connected as Google user: ${user.sub}`);
+      });
+
+      socket.on("disconnect", () => {
+        setSocketConnected(false);
+        log("🔴 Disconnected from server");
+      });
+
+      socket.on("room_created", ({ roomId, memberId }) => {
+        setRoomCode(roomId);
+        log(`🏠 Room created: ${roomId} | Google sub: ${memberId}`);
+        navigate(`/room/${roomId}`);
+      });
+
+      socket.on("error_message", (msg: string) => {
+        log(`⚠️ Error: ${msg}`);
+      });
+    } else {
+      setSocketConnected(window.globalSocket.connected);
+      log("♻️ Reusing existing socket connection");
     }
-
-    const socket = io(WS_BASE, {
-      transports: ["websocket"],
-      withCredentials: true,
-      auth: { token },
-    });
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setSocketConnected(true);
-      log(`✅ Connected as Google user: ${user.sub}`);
-    });
-
-    socket.on("disconnect", () => {
-      setSocketConnected(false);
-      log("🔴 Disconnected from server");
-    });
-
-    socket.on("connect_error", (err) => {
-      log(`❌ Connection error: ${err.message}`);
-    });
-
-    socket.on("room_created", ({ roomId, memberId }) => {
-      setRoomCode(roomId);
-      log(`🏠 Room created: ${roomId} | Google sub: ${memberId}`);
-      navigate(`/room/${roomId}`);
-    });
-
-    socket.on("room_joined", ({ roomId, memberId }) => {
-      setRoomCode(roomId);
-      log(`🙋 Joined Room: ${roomId} | Google sub: ${memberId}`);
-      navigate(`/room/${roomId}`);
-    });
-
-    socket.on("member_joined", ({ roomId, memberId }) => {
-      log(`🧩 New member joined room ${roomId}: ${memberId}`);
-    });
-
-    socket.on("error_message", (msg: string) => {
-      log(`⚠️ Error: ${msg}`);
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
   }, [user?.sub, log, navigate]);
 
-  // 🖥️ Scroll logs automatically
+  // 🧩 Fetch rooms joined by this user
   useEffect(() => {
-    const t = terminalRef.current;
-    if (t) t.scrollTop = t.scrollHeight;
-  }, [logs]);
+    if (!user?.sub) return;
+
+    const fetchRooms = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/daemon/roomsJoined`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ googleId: user.sub }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setRoomsJoined(data.rooms || []);
+          log(`📦 Loaded ${data.rooms?.length || 0} joined rooms`);
+        } else {
+          log(`⚠️ Could not fetch rooms: ${data.error}`);
+        }
+      } catch (err) {
+        log(`❌ Error fetching rooms: ${err}`);
+      }
+    };
+
+    fetchRooms();
+  }, [user?.sub, log]);
 
   const createRoom = () => {
-    if (!socketRef.current) return log("⚠️ Not connected to server");
-    socketRef.current.emit("create_room");
-  };
-
-  const joinRoom = () => {
-    const code = joinCode.trim().toUpperCase();
-    if (!code) return log("⚠️ Enter a valid room code");
-    if (!socketRef.current) return log("⚠️ Not connected to server");
-    socketRef.current.emit("join_room", code);
+    if (!window.globalSocket) return log("⚠️ Not connected to server");
+    window.globalSocket.emit("create_room");
   };
 
   const handleLogout = async () => {
     localStorage.removeItem("session_token");
     localStorage.removeItem("member_id");
+    window.globalSocket?.disconnect();
+    window.globalSocket = undefined;
+
     await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       credentials: "include",
@@ -192,6 +206,7 @@ export default function HomePage(): JSX.Element {
         </div>
 
         <div className="terminal-body-grid" ref={terminalRef}>
+          {/* User Info */}
           <div className="user-card neon-card">
             <img src={user.picture} alt={user.name} className="avatar" />
             <div className="user-info">
@@ -200,8 +215,37 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
+          {/* Rooms Joined */}
+          <div className="neon-card">
+            <h3 className="neon-title">💬 Joined Rooms</h3>
+
+            {roomsJoined.length === 0 ? (
+              <p className="text-sm text-gray-400">No rooms joined yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                {roomsJoined.map((room) => (
+                  <div
+                    key={room.roomId}
+                    onClick={() => navigate(`/room/${room.roomId}`)}
+                    className="room-box"
+                  >
+                    <div className="room-arrow" />
+                    <div className="room-content">
+                      <p className="room-id">💾 {room.roomId}</p>
+                      <p className="room-members">
+                        👥 {room.members.length} member
+                        {room.members.length !== 1 && "s"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Create Room */}
           <div className="neon-card room-control">
-            <h3 className="neon-title">⚡ Create or Join a Room</h3>
+            <h3 className="neon-title">⚡ Create a New Room</h3>
 
             <div className="command-buttons">
               <Button
@@ -210,24 +254,13 @@ export default function HomePage(): JSX.Element {
               >
                 Create Room
               </Button>
-
-              <div className="mt-3 flex gap-2 justify-center">
-                <input
-                  type="text"
-                  placeholder="Enter room code"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  className="join-input"
-                />
-                <Button onClick={joinRoom} className="neon-btn join-btn">
-                  Join
-                </Button>
-              </div>
             </div>
 
             <div className="status-bar">
               <span
-                className={`status-dot ${socketConnected ? "online" : "offline"}`}
+                className={`status-dot ${
+                  socketConnected ? "online" : "offline"
+                }`}
               />
               <span className="status-text">
                 {socketConnected ? "Connected" : "Disconnected"}
@@ -240,6 +273,7 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
 
+          {/* Terminal Logs */}
           <div className="neon-terminal-logs">
             <div className="terminal-header-bar">📜 Live Logs</div>
             <pre className="terminal-log-output">
