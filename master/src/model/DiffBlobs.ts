@@ -74,5 +74,6 @@ const DiffBlobSchema = new Schema<DiffBlob>({
 
 export const DiffBlobModel = mongoose.model<DiffBlob>(
   "DiffBlob",
-  DiffBlobSchema
+  DiffBlobSchema,
+  "diffBlobs"
 );

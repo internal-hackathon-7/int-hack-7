@@ -123,7 +123,7 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     // Fetch all documents for the member, sorted by latest timestamp
     const data = await DiffBlobModel.find({
       roomId,
-      memberId: googleId,
+      memberId: String(googleId),
     }).sort({ timestamp: -1 });
 
     if (!data || data.length === 0) {

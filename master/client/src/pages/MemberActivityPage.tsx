@@ -85,8 +85,9 @@ export default function MemberActivityPage() {
           throw new Error(`HTTP ${res.status}: ${text}`);
         }
 
-        const data = (await res.json()) as DiffBlob[]; // expecting array of diff docs
-        setDiffData(data || []);
+        const data = (await res.json()) as {message:string,  allTimeStamps:[],diffData:DiffBlob[],}; 
+        console.log("Diff data ", data)
+        setDiffData(data.diffData || []);
       } catch (err) {
         console.error("❌ Error fetching diff blobs:", err);
         setDiffData([]);
