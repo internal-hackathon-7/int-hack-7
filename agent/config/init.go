@@ -19,7 +19,6 @@ import (
 
 // const MasterURL = "https://google.com"
 const DisplayName = "daemon"
-const DefaultProjectPath = "/Users/aditya/99-trash/dummy"
 
 // startService simulates a background daemon
 func StartService(projectPath string, interval int, email string, roomId string) {
@@ -97,7 +96,7 @@ func InitCommand() (string, int, string, string, error) {
 		log.Fatalf("error in joining [%v], %v: ", roomID, err)
 	}
 
-	projectPath := prompt("Enter the project path to monitor", DefaultProjectPath)
+	projectPath := prompt("Enter the project path to monitor", constants.DefaultProjectPath)
 
 	config := types.ProjectConfig{
 		ProjectPath: projectPath,
