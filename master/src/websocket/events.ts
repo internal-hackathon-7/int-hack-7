@@ -85,7 +85,7 @@ export function setupSocketHandlers(io: Server) {
     });
 
     socket.on("disconnect", async () => {
-      console.log(`🔴 events.ts ${googleId} disconnected`);
+      console.log(`🔴 ${googleId} disconnected`);
 
       try {
         const rooms = await Room.find({ members: googleId });
@@ -100,9 +100,7 @@ export function setupSocketHandlers(io: Server) {
             );
 
             if (stillOnline) {
-              console.log(
-                `🟢 ${googleId} reconnected quickly, keeping in room`
-              );
+              console.log(`🟢 ${googleId} reconnected quickly, keeping in room`);
               return;
             }
 
@@ -114,25 +112,21 @@ export function setupSocketHandlers(io: Server) {
               (id) => id !== googleId
             );
 
-            // if (currentRoom.members.length == 0) {
-            //   await Room.deleteOne({ roomId: currentRoom.roomId });
-            //   console.log(`🗑️ Deleted inactive room ${currentRoom.roomId}`);
-            // } else {
-            //   await currentRoom.save();
-            //   console.log(`✅ Updated members for room ${currentRoom.roomId}`);
-            //   await emitMembers(currentRoom.roomId);
-            // }
-
-            await currentRoom.save();
-            console.log(`✅ Updated members for room ${currentRoom.roomId}`);
-            await emitMembers(currentRoom.roomId);
-            
-          }, 15000); // ⏱ 15s delay before cleanup
+            if (currentRoom.members.length === 0) {
+              await Room.deleteOne({ roomId: currentRoom.roomId });
+              console.log(`🗑️ Deleted inactive room ${currentRoom.roomId}`);
+            } else {
+              await currentRoom.save();
+              console.log(`✅ Updated members for room ${currentRoom.roomId}`);
+              await emitMembers(currentRoom.roomId);
+            }
+          }, 86400000); // ⏱ 15s delay before cleanup
         }
       } catch (err) {
         console.error("❌ Disconnect cleanup error:", err);
       }
     });
+
     socket.on("leave_room", async (roomId: string) => {
       try {
         const room = await Room.findOne({ roomId });
@@ -146,13 +140,23 @@ export function setupSocketHandlers(io: Server) {
         await emitMembers(roomId);
 
         if (room.members.length === 0) {
-          await Room.deleteOne({ roomId });
-          console.log(`🗑️ Deleted empty room ${roomId}`);
-        }
+          console.log(`⏳ Room ${roomId} is empty. Scheduling deletion in 24 hours...`);
+
+          setTimeout(async () => {
+            const checkRoom = await Room.findOne({ roomId });
+
+            // Delete only if still empty after 24 hours
+            if (checkRoom && checkRoom.members.length === 0) {
+              await Room.deleteOne({ roomId });
+              console.log(`🗑️ Deleted empty room ${roomId} after 24 hours`);
+            } else {
+              console.log(`✅ Room ${roomId} not deleted — members joined later`);
+            }
+          }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+}
       } catch (err) {
         console.error("❌ Error leaving room:", err);
       }
     });
-
   });
 }
