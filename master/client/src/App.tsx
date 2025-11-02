@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import RoomPage from "./pages/RoomPage";
 import MemberActivityPage from "./pages/MemberActivityPage";
+import DiffPage from "./pages/DiffPage";
 
 export default function App() {
   return (
@@ -16,6 +17,8 @@ export default function App() {
           path="/room/:roomId/member/:googleId"
           element={<MemberActivityPage />}
         />
+        <Route path="/diff/:roomId/member/:googleId"
+          element={<DiffPage/>}/>
       </Routes>
     </BrowserRouter>
   );

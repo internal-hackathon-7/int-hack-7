@@ -214,13 +214,9 @@ export default function MemberActivityPage() {
                         <div
                           key={idx}
                           className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-[#071007] cursor-pointer"
-                          onClick={() =>
-                            setOpenDiff({
-                              title: path,
-                              text:
-                                f.patch?.diffText ??
-                                `No unified diff available — action: ${action}`,
-                            })
+                          onClick={() =>{navigate(`/diff/${roomId}/member/${googleId}`)
+                          localStorage.setItem("time",commit.timestamp)
+                          localStorage.setItem("path",path)}
                           }
                         >
                           <div className="flex items-center gap-3">
