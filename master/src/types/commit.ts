@@ -1,3 +1,11 @@
+export interface CommitPayload {
+  emailId: string;
+  roomId: string;
+  timestamp: string;
+  fileDiff: DiffBlob;
+  cmdDiff: CmdDiffBlob;
+}
+
 export interface CmdDiffBlob {
   commands: CommandEntry[];
 }
@@ -41,12 +49,4 @@ export interface FileChange {
 
 export interface PatchInfo {
   diff_text: string;
-}
-
-export interface CommitPayload {
-  emailId: string;
-  roomId: string;
-  timestamp: string;
-  fileDiff: DiffBlob;
-  cmdDiff: CmdDiffBlob;
 }

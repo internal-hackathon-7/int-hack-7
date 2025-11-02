@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { Room } from "../model/Room.ts";
 import { User } from "../model/User.ts";
-import { DiffBlobModel } from "../model/DiffBlobs.ts";
+import { CommitPayloadModel } from "../model/DiffBlobs.ts";
 import type { CommitPayload } from "../types/commit.ts";
+import { getMemberIdByEmail } from "../utils/fetchUserID.ts";
 
 export const roomRouter = Router();
 
@@ -69,44 +70,36 @@ export async function getUserRooms(req: Request, res: Response) {
   }
 }
 
-export const addDiffBlobs = async (req: Request, res: Response) => {
+export const handleCommit = async (req: Request, res: Response) => {
   try {
-    const {
-      roomId,
-      memberId,
-      projectName,
-      oldHash,
-      newHash,
-      summary,
-      changes,
-    } = req.body;
+    const payload: CommitPayload = req.body;
+    const memberId = await getMemberIdByEmail(payload.emailId)
+
+    console.log(payload)
 
     // 🧩 Validation
-    if (!roomId || !memberId || !projectName) {
+    if (!payload.roomId || !memberId) {
       return res.status(400).json({
-        error: "roomId, memberId, and projectName are required fields.",
+        error: "roomId and memberId, are required fields. OR maybe you dont exist...",
       });
     }
-
-    // 🧠 Create and Save DiffBlob
-    const diffBlob = new DiffBlobModel({
-      roomId,
-      memberId,
-      projectName,
-      oldHash,
-      newHash,
-      summary,
-      changes,
-      timestamp: new Date(),
+    console.log("boo")
+    const commitDoc = new CommitPayloadModel({
+      emailId: payload.emailId,
+      roomId: payload.roomId,
+      timestamp: payload.timestamp,
+      fileDiff: payload.fileDiff,
+      cmdDiff: payload.cmdDiff,
     });
+    console.log(commitDoc)
 
-    await diffBlob.save();
+    await commitDoc.save();
 
-    console.log(`✅ DiffBlob added for member ${memberId} in room ${roomId}`);
+    console.log(`✅ DiffBlob added for member ${memberId} in room ${payload.roomId}`);
 
     return res.status(201).json({
       message: "DiffBlob added successfully",
-      diffBlob,
+      payload,
     });
   } catch (error) {
     console.error("❌ Error adding DiffBlob:", error);
@@ -123,7 +116,7 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     }
 
     // Fetch all documents for the member, sorted by latest timestamp
-    const data = await DiffBlobModel.find({
+    const data = await CommitPayloadModel.find({
       roomId,
       memberId: String(googleId),
     }).sort({ timestamp: -1 });
@@ -133,49 +126,20 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     }
 
     // Extract all timestamps separately (for timeline or history view)
-    const allTimestamps = data.map((entry) => ({
-      projectName: entry.projectName,
-      timestamp: entry.timestamp,
-      newHash: entry.newHash,
-      oldHash: entry.oldHash,
-    }));
+    // const allTimestamps = data.map((entry) => ({
+    //   projectName: "",
+    //   timestamp: entry.timestamp,
+    //   newHash: entry.newHash,
+    //   oldHash: entry.oldHash,
+    // }));
 
     // Respond with both the data and timestamps
     res.status(200).json({
       message: "Fetched member activity successfully",
-      allTimestamps,
       diffData: data,
     });
   } catch (error) {
     console.error("❌ Error fetching diff blobs:", error);
     res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-export const handleCommit = async (req: Request, res: Response) => {
-  try {
-    const payload: CommitPayload = req.body;
-
-    console.log("📦 Received Commit:");
-    console.log("EmailID:", payload.emailId);
-    console.log("RoomID:", payload.roomId);
-    console.log("Timestamp:", payload.timestamp);
-    // console.log("FileDiff:", fileDiff);
-    // console.log("CmdDiff:", cmdDiff);
-
-
-    //
-
-
-    return res.status(200).json({
-      success: true,
-      message: "Commit received successfully",
-    });
-  } catch (error) {
-    console.error("❌ Error handling commit:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
   }
 };

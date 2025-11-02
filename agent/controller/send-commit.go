@@ -43,7 +43,7 @@ func SendCommit(url string, payload types.CommitPayload) error {
 
 	// Check the success flag
 	if !res.Success {
-		fmt.Errorf("commit failed: %s", res.Message)
+		return fmt.Errorf("commit failed: %s", res.Message)
 	}
 
 	log.Println(" ===Commit successfully sent!=== ")

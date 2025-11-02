@@ -86,7 +86,7 @@ func ConnectRoom(roomID string, emailID string) (interval int, err error) {
 }
 
 // InitCommand handles `daemon init`
-func InitCommand() (string, int, string, error) {
+func InitCommand() (string, int, string, string, error) {
 	fmt.Println("Welcome to Daemon setup!")
 
 	emailID := prompt("Signup to the Website and then Enter your emailID", "")
@@ -112,18 +112,18 @@ func InitCommand() (string, int, string, error) {
 
 	data, err := yaml.Marshal(&config)
 	if err != nil {
-		return "", 0, "", err
+		return "", 0, "", roomID, err
 	}
 
 	err = os.WriteFile(configFile, data, 0644)
 	if err != nil {
-		return "", 0, "", err
+		return "", 0, "", roomID, err
 	}
 
 	fmt.Println("Config saved at", configFile)
 	fmt.Println("Proceeding to start service")
 
-	return projectPath, interval, emailID, nil
+	return projectPath, interval, emailID, roomID, nil
 }
 
 func PingMaster() error {

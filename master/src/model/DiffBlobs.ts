@@ -1,79 +1,73 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-interface PatchInfo {
-  diffText: string;
-}
+// --- Subschemas ---
 
-interface FileChange {
-  action: string;
-  oldPath?: string;
-  newPath?: string;
-  oldMode?: string;
-  newMode?: string;
-  hashBefore?: string;
-  hashAfter?: string;
-  linesAdded: number;
-  linesDeleted: number;
-  patch?: PatchInfo;
-}
+const PatchInfoSchema = new Schema({
+  diff_text: { type: String },
+});
 
-interface SummaryInfo {
-  filesChanged: number;
-  insertions: number;
-  deletions: number;
-  renames: number;
-  copies: number;
-}
+const FileChangeSchema = new Schema({
+  action: { type: String },
+  old_path: { type: String },
+  new_path: { type: String },
+  old_mode: { type: String },
+  new_mode: { type: String },
+  hash_before: { type: String },
+  hash_after: { type: String },
+  lines_added: { type: Number },
+  lines_deleted: { type: Number },
+  patch: { type: PatchInfoSchema },
+});
 
-export interface DiffBlob extends Document {
+const SummaryInfoSchema = new Schema({
+  files_changed: { type: Number },
+  insertions: { type: Number },
+  deletions: { type: Number },
+  renames: { type: Number },
+  copies: { type: Number },
+});
+
+const DiffBlobSchema = new Schema({
+  project_name: { type: String, required: true },
+  old_hash: { type: String, required: true },
+  new_hash: { type: String, required: true },
+  timestamp: { type: String },
+  summary: { type: SummaryInfoSchema },
+  changes: { type: [FileChangeSchema] },
+});
+
+const CommandEntrySchema = new Schema({
+  timestamp: { type: String },
+  command: { type: String },
+  exit_code: { type: Number },
+  stderr: { type: String },
+});
+
+const CmdDiffBlobSchema = new Schema({
+  commands: { type: [CommandEntrySchema] },
+});
+
+// --- Main Schema ---
+
+const CommitPayloadSchema = new Schema({
+  emailId: { type: String, required: true },
+  roomId: { type: String, required: true },
+  timestamp: { type: String, required: true },
+  fileDiff: { type: DiffBlobSchema },
+  cmdDiff: { type: CmdDiffBlobSchema },
+});
+
+// --- Model ---
+
+export interface ICommitPayload extends Document {
+  emailId: string;
   roomId: string;
-  memberId: string;
-  projectName: string;
-  oldHash: string;
-  newHash: string;
-  timestamp: Date;
-  summary: SummaryInfo;
-  changes: FileChange[];
+  timestamp: string;
+  fileDiff?: typeof DiffBlobSchema;
+  cmdDiff?: typeof CmdDiffBlobSchema;
 }
 
-const PatchSchema = new Schema<PatchInfo>({
-  diffText: { type: String },
-});
-
-const FileChangeSchema = new Schema<FileChange>({
-  action: { type: String, required: true },
-  oldPath: String,
-  newPath: String,
-  oldMode: String,
-  newMode: String,
-  hashBefore: String,
-  hashAfter: String,
-  linesAdded: Number,
-  linesDeleted: Number,
-  patch: PatchSchema,
-});
-
-const SummarySchema = new Schema<SummaryInfo>({
-  filesChanged: Number,
-  insertions: Number,
-  deletions: Number,
-  renames: Number,
-  copies: Number,
-});
-
-const DiffBlobSchema = new Schema<DiffBlob>({
-  roomId: { type: String, required: true, index: true },
-  memberId: { type: String, required: true, index: true },
-  projectName: { type: String, required: true },
-  oldHash: String,
-  newHash: String,
-  timestamp: { type: Date, default: Date.now },
-  summary: SummarySchema,
-  changes: [FileChangeSchema],
-});
-
-export const DiffBlobModel = mongoose.model<DiffBlob>(
-  "DiffBlob",
-  DiffBlobSchema,
-  "diffBlobs"
+export const CommitPayloadModel = mongoose.model<ICommitPayload>(
+  "CommitPayload",
+  CommitPayloadSchema
 );

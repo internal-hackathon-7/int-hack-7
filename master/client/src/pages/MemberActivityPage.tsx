@@ -85,7 +85,7 @@ export default function MemberActivityPage() {
           throw new Error(`HTTP ${res.status}: ${text}`);
         }
 
-        const data = (await res.json()) as {message:string,  allTimeStamps:[],diffData:DiffBlob[],}; 
+        const data = (await res.json()) as {message:string,diffData:DiffBlob[],}; 
         console.log("Diff data ", data)
         setDiffData(data.diffData || []);
       } catch (err) {

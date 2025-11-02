@@ -34,7 +34,7 @@ func main() {
 		if err := config.PingMaster(); err != nil {
 			log.Fatal("Connection NOT established! Service down")
 		}
-		projectPath, interval, emailID, err := config.InitCommand()
+		projectPath, interval, emailID, roomID, err := config.InitCommand()
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
@@ -50,6 +50,7 @@ func main() {
 			"-path", projectPath,
 			"-interval", fmt.Sprintf("%d", interval),
 			"-email", emailID,
+			"-roomid", roomID,
 		)
 
 		// detach from terminal (run in background)
@@ -70,8 +71,7 @@ func main() {
 		projectPath := initCmd.String("path", ".", "Path to the project directory to monitor")
 		interval := initCmd.Int("interval", 10, "Polling interval in seconds (integer only)")
 		emailPtr := initCmd.String("email", "", "Email address for identification or notifications")
-		email := *emailPtr
-		roomIdPtr := initCmd.String("roomId", "", "room id to which daemon is connected")
+		roomIdPtr := initCmd.String("roomid", "", "room id to which daemon is connected")
 
 		if err := initCmd.Parse(os.Args[2:]); err != nil {
 			log.Fatal(err)
@@ -94,7 +94,7 @@ func main() {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 		log.Println("Agent starting up...")
-		log.Println("email :", email)
+		log.Println("email :", *emailPtr)
 		log.Println("roomId :", *roomIdPtr)
 		log.Printf("Monitoring path: %s\n", *projectPath)
 		log.Printf("Interval: %d seconds\n", *interval)
@@ -126,7 +126,7 @@ func main() {
 		}
 
 		// --- START SERVICE ---
-		config.StartService(*projectPath, *interval, email, *roomIdPtr)
+		config.StartService(*projectPath, *interval, *emailPtr, *roomIdPtr)
 
 		// --- CLEANUP WHEN EXITING ---
 		os.Remove(pidFilePath)
