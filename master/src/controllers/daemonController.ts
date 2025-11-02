@@ -2,7 +2,6 @@ import { Router, type Request, type Response } from "express";
 import { Room } from "../model/Room.ts";
 import { User } from "../model/User.ts";
 import { DiffBlobModel } from "../model/DiffBlobs.ts";
-import { User } from "../model/User.ts"; // assuming you have this model
 import type { CommitPayload } from "../types/commit.ts";
 
 export const roomRouter = Router();
@@ -152,8 +151,6 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
-}
 
 export const handleCommit = async (req: Request, res: Response) => {
   try {
