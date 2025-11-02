@@ -75,15 +75,12 @@ export const handleCommit = async (req: Request, res: Response) => {
     const payload: CommitPayload = req.body;
     const memberId = await getMemberIdByEmail(payload.emailId)
 
-    console.log(payload)
-
     // 🧩 Validation
     if (!payload.roomId || !memberId) {
       return res.status(400).json({
         error: "roomId and memberId, are required fields. OR maybe you dont exist...",
       });
     }
-    console.log("boo")
     const commitDoc = new CommitPayloadModel({
       emailId: payload.emailId,
       roomId: payload.roomId,
@@ -91,7 +88,6 @@ export const handleCommit = async (req: Request, res: Response) => {
       fileDiff: payload.fileDiff,
       cmdDiff: payload.cmdDiff,
     });
-    console.log(commitDoc)
 
     await commitDoc.save();
 
