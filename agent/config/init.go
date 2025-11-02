@@ -22,7 +22,7 @@ const DisplayName = "daemon"
 const DefaultProjectPath = "/Users/aditya/99-trash/dummy"
 
 // startService simulates a background daemon
-func StartService(projectPath string, interval int) {
+func StartService(projectPath string, interval int, email string, roomId string) {
 	ticker := time.NewTicker(time.Duration(interval * int(time.Second)))
 	defer ticker.Stop()
 
@@ -38,13 +38,27 @@ func StartService(projectPath string, interval int) {
 			log.Panic("CMD DIFF error")
 		}
 
+		commit := &types.CommitPayload{
+			EmailID:   email,
+			RoomID:    roomId,
+			TimeStamp: time.Now(),
+			FileDiff:  diffBlob,
+			CmdDiff:   cmdDiffBlob,
+		}
+
+		url := constants.MasterURL + "/daemon/commit"
+
+		err = controller.SendCommit(url, *commit)
+		if err != nil {
+			log.Println("Unable to commit : ", err)
+		}
+
 		log.Println("")
 		log.Printf("%#v\n", diffBlob.Changes)
 		log.Println("")
 		log.Printf("%#v\n", cmdDiffBlob)
 		log.Println("")
 
-		//idhar then send diff json...to master ;)
 		//also send the cmd diff to master
 		log.Println("")
 		log.Println("one iteration successfull")
@@ -53,7 +67,7 @@ func StartService(projectPath string, interval int) {
 }
 
 func ConnectRoom(roomID string, emailID string) (interval int, err error) {
-	ans := 20
+	ans := 5
 
 	payload := &types.LoginPayload{
 		RoomID: roomID,
@@ -65,6 +79,8 @@ func ConnectRoom(roomID string, emailID string) (interval int, err error) {
 	if err != nil {
 		return 0, fmt.Errorf("=== Login Failed READ INSTRUCTIONS ===\n%v", err)
 	}
+
+	fmt.Println(" === LOGIN successful ! === ")
 
 	return ans, nil
 }

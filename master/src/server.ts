@@ -33,7 +33,7 @@ app.get("/", (req: Request, res: Response) => {
 
 app.get("/ping", (req: Request, res: Response) => {
   res.json({
-    message: "Hey from the server",
+    message: "Server is active.",
     check: true,
   });
 });
