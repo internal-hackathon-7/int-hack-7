@@ -67,7 +67,7 @@ func StartService(projectPath string, interval int, email string, roomId string)
 }
 
 func ConnectRoom(roomID string, emailID string) (interval int, err error) {
-	ans := 5
+	ans := constants.MasterURL
 
 	payload := &types.LoginPayload{
 		RoomID: roomID,
