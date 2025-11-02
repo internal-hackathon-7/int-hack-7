@@ -68,7 +68,7 @@ export default function DiffPage() {
 
         setDiffData(data.diffData || []);
       } catch (err) {
-        console.error("❌ Error fetching diff blobs:", err);
+        console.error("❌ Error fetching diff blobs on diffpage:", err);
       } finally {
         setLoading(false);
       }

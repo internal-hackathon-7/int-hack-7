@@ -85,7 +85,7 @@ export function setupSocketHandlers(io: Server) {
     });
 
     socket.on("disconnect", async () => {
-      console.log(`🔴 ${googleId} disconnected`);
+      console.log(`🔴 events.ts ${googleId} disconnected`);
 
       try {
         const rooms = await Room.find({ members: googleId });
@@ -114,14 +114,19 @@ export function setupSocketHandlers(io: Server) {
               (id) => id !== googleId
             );
 
-            if (currentRoom.members.length === 0) {
-              await Room.deleteOne({ roomId: currentRoom.roomId });
-              console.log(`🗑️ Deleted inactive room ${currentRoom.roomId}`);
-            } else {
-              await currentRoom.save();
-              console.log(`✅ Updated members for room ${currentRoom.roomId}`);
-              await emitMembers(currentRoom.roomId);
-            }
+            // if (currentRoom.members.length == 0) {
+            //   await Room.deleteOne({ roomId: currentRoom.roomId });
+            //   console.log(`🗑️ Deleted inactive room ${currentRoom.roomId}`);
+            // } else {
+            //   await currentRoom.save();
+            //   console.log(`✅ Updated members for room ${currentRoom.roomId}`);
+            //   await emitMembers(currentRoom.roomId);
+            // }
+
+            await currentRoom.save();
+            console.log(`✅ Updated members for room ${currentRoom.roomId}`);
+            await emitMembers(currentRoom.roomId);
+            
           }, 15000); // ⏱ 15s delay before cleanup
         }
       } catch (err) {

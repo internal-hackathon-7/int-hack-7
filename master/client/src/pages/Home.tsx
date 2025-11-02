@@ -107,7 +107,7 @@ export default function HomePage(): JSX.Element {
 
       socket.on("disconnect", () => {
         setSocketConnected(false);
-        log("🔴 Disconnected from server");
+        log("🔴 home.ts Disconnected from server");
       });
 
       socket.on("room_created", ({ roomId, memberId }) => {

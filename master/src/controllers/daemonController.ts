@@ -3,7 +3,7 @@ import { Room } from "../model/Room.ts";
 import { User } from "../model/User.ts";
 import { CommitPayloadModel } from "../model/DiffBlobs.ts";
 import type { CommitPayload } from "../types/commit.ts";
-import { getMemberIdByEmail } from "../utils/fetchUserID.ts";
+import { getMemberIdByEmail, getEmailByGoogleId } from "../utils/fetchUserID.ts";
 
 export const roomRouter = Router();
 
@@ -106,6 +106,8 @@ export const handleCommit = async (req: Request, res: Response) => {
 export const fetchDiffBlobMember = async (req: Request, res: Response) => {
   try {
     const { roomId, googleId } = req.body;
+    
+    let emailId = await getEmailByGoogleId(googleId)
 
     if (!roomId || !googleId) {
       return res.status(400).json({ error: "Missing roomId or googleId" });
@@ -114,7 +116,7 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
     // Fetch all documents for the member, sorted by latest timestamp
     const data = await CommitPayloadModel.find({
       roomId,
-      memberId: String(googleId),
+      emailId,
     }).sort({ timestamp: -1 });
 
     if (!data || data.length === 0) {
@@ -135,7 +137,7 @@ export const fetchDiffBlobMember = async (req: Request, res: Response) => {
       diffData: data,
     });
   } catch (error) {
-    console.error("❌ Error fetching diff blobs:", error);
+    console.error("❌ Error fetching diff blobs in daemonController:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };

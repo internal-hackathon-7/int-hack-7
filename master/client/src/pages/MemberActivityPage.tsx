@@ -21,15 +21,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Folder, FolderOpen, FileCode2, Clock1 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import "./Home.css"; // keeps your neon styles
+import type {
+  CommitPayload,
+  CmdDiffBlob,
+  CommandEntry,
+  DiffBlob,
+  SummaryInfo,
+  FileChange,
+  PatchInfo
+} from "../../../src/types/commit.ts";
+
 
 // --- Types (match your backend) ---
-interface SummaryInfo {
-  filesChanged: number;
-  insertions: number;
-  deletions: number;
-  renames: number;
-  copies: number;
-}
+// interface SummaryInfo {
+//   filesChanged: number;
+//   insertions: number;
+//   deletions: number;
+//   renames: number;
+//   copies: number;
+// }
 
 interface RawChange {
   action?: string;
@@ -40,21 +50,21 @@ interface RawChange {
   patch?: { diffText?: string };
 }
 
-interface DiffBlob {
-  _id?: string;
-  projectName: string;
-  oldHash: string;
-  newHash: string;
-  timestamp: string; // or ISODate string
-  summary: SummaryInfo;
-  changes?: RawChange[];
-}
+// interface DiffBlob {
+//   _id?: string;
+//   projectName: string;
+//   oldHash: string;
+//   newHash: string;
+//   timestamp: string; // or ISODate string
+//   summary: SummaryInfo;
+//   changes?: RawChange[];
+// }
 
 // --- Component ---
 export default function MemberActivityPage() {
   const { roomId, googleId } = useParams();
   const navigate = useNavigate();
-  const [diffData, setDiffData] = useState<DiffBlob[]>([]);
+  const [diffData, setDiffData] = useState<CommitPayload[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null); // _id
   const [openDiff, setOpenDiff] = useState<{
@@ -84,8 +94,8 @@ export default function MemberActivityPage() {
           const text = await res.text();
           throw new Error(`HTTP ${res.status}: ${text}`);
         }
-
-        const data = (await res.json()) as {message:string,diffData:DiffBlob[],}; 
+        console.log(res);
+        const data = (await res.json()) as {message:string,diffData:CommitPayload[],}; 
         console.log("Diff data ", data)
         setDiffData(data.diffData || []);
       } catch (err) {
@@ -99,10 +109,10 @@ export default function MemberActivityPage() {
 
   // --- small charts data ---
   const summaryData = diffData.map((d) => ({
-    project: d.projectName,
-    insertions: d.summary?.insertions ?? 0,
-    deletions: d.summary?.deletions ?? 0,
-    filesChanged: d.summary?.filesChanged ?? 0,
+    project: d.fileDiff.project_name,
+    insertions: d.fileDiff.summary?.insertions ?? 0,
+    deletions: d.fileDiff.summary?.deletions ?? 0,
+    filesChanged: d.fileDiff.summary?.files_changed ?? 0,
   }));
 
   const totalSummary = summaryData.reduce(
@@ -122,11 +132,11 @@ export default function MemberActivityPage() {
 
   const timelineData = diffData.map((d, i) => ({
     index: i + 1,
-    hash: (d.newHash || "").slice(0, 7),
+    hash: (d.fileDiff.new_hash || "").slice(0, 7),
     timestamp: new Date(d.timestamp).toLocaleString(),
-    insertions: d.summary?.insertions ?? 0,
-    deletions: d.summary?.deletions ?? 0,
-    filesChanged: d.summary?.filesChanged ?? 0,
+    insertions: d.fileDiff.summary?.insertions ?? 0,
+    deletions: d.fileDiff.summary?.deletions ?? 0,
+    filesChanged: d.fileDiff.summary?.files_changed ?? 0,
   }));
 
   // helper: readable timestamp label
@@ -134,10 +144,11 @@ export default function MemberActivityPage() {
     t ? new Date(t).toLocaleString() : "unknown time";
 
   // render commit list (vertical)
-  const CommitCard: React.FC<{ commit: DiffBlob }> = ({ commit }) => {
-    const id = commit._id ?? `${commit.newHash}-${commit.timestamp}`;
+  const CommitCard: React.FC<{ commit: CommitPayload }> = ({ commit }) => {
+    const id =  `${commit.fileDiff.new_hash}-${commit.timestamp}`;
+    // const id = commit._id ?? `${commit.fileDiff.new_hash}-${commit.timestamp}`;
     const isOpen = expandedCommit === id;
-    const files = commit.changes || [];
+    const files = commit.fileDiff.changes || [];
 
     return (
       <div className="neon-card my-3 p-3" style={{ overflow: "visible" }}>
@@ -153,23 +164,23 @@ export default function MemberActivityPage() {
             <div className="ml-2 text-xs text-gray-300">
               <div>
                 project:{" "}
-                <strong className="text-[#33ffaa]">{commit.projectName}</strong>
+                <strong className="text-[#33ffaa]">{commit.fileDiff.project_name}</strong>
               </div>
               <div className="mt-1">
-                hash: <code>{(commit.newHash || "").slice(0, 10)}</code>
+                hash: <code>{(commit.fileDiff.new_hash || "").slice(0, 10)}</code>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="text-xs font-mono text-[#00ff66]">
-              +{commit.summary?.insertions ?? 0}
+              +{commit.fileDiff.summary?.insertions ?? 0}
             </div>
             <div className="text-xs font-mono text-[#ff6666]">
-              -{commit.summary?.deletions ?? 0}
+              -{commit.fileDiff.summary?.deletions ?? 0}
             </div>
             <div className="text-xs font-mono text-[#33ffaa]">
-              {commit.summary?.filesChanged ?? 0} files
+              {commit.fileDiff.summary?.files_changed ?? 0} files
             </div>
 
             <Button
@@ -199,8 +210,8 @@ export default function MemberActivityPage() {
                     {files.length === 0 && (
                       <div className="text-sm text-gray-400">No files</div>
                     )}
-                    {files.map((f: RawChange, idx: number) => {
-                      const path = f.newPath || f.oldPath || "unknown";
+                    {files.map((f: FileChange, idx: number) => {
+                      const path = f.new_path || f.old_path || "unknown";
                       const action = f.action || "modified";
                       const badgeColor =
                         action === "added"
@@ -236,7 +247,7 @@ export default function MemberActivityPage() {
                               {action}
                             </div>
                             <div className="text-xs text-gray-400">
-                              +{f.linesAdded ?? 0} / -{f.linesDeleted ?? 0}
+                              +{f.lines_added ?? 0} / -{f.lines_deleted ?? 0}
                             </div>
                           </div>
                         </div>
@@ -254,23 +265,23 @@ export default function MemberActivityPage() {
                       <div>
                         Insertions:{" "}
                         <strong className="text-[#00ff66]">
-                          {commit.summary?.insertions ?? 0}
+                          {commit.fileDiff.summary?.insertions ?? 0}
                         </strong>
                       </div>
                       <div>
                         Deletions:{" "}
                         <strong className="text-[#ff6666]">
-                          {commit.summary?.deletions ?? 0}
+                          {commit.fileDiff.summary?.deletions ?? 0}
                         </strong>
                       </div>
                       <div>
                         Files changed:{" "}
                         <strong className="text-[#33ffaa]">
-                          {commit.summary?.filesChanged ?? 0}
+                          {commit.fileDiff.summary?.files_changed ?? 0}
                         </strong>
                       </div>
                       <div>
-                        Renames: <strong>{commit.summary?.renames ?? 0}</strong>
+                        Renames: <strong>{commit.fileDiff.summary?.renames ?? 0}</strong>
                       </div>
                     </div>
                   </div>
@@ -281,15 +292,15 @@ export default function MemberActivityPage() {
                         data={[
                           {
                             key: "insertions",
-                            value: commit.summary?.insertions ?? 0,
+                            value: commit.fileDiff.summary?.insertions ?? 0,
                           },
                           {
                             key: "deletions",
-                            value: commit.summary?.deletions ?? 0,
+                            value: commit.fileDiff.summary?.deletions ?? 0,
                           },
                           {
                             key: "files",
-                            value: commit.summary?.filesChanged ?? 0,
+                            value: commit.fileDiff.summary?.files_changed ?? 0,
                           },
                         ]}
                       >
@@ -407,7 +418,8 @@ export default function MemberActivityPage() {
                 <div className="text-sm text-gray-400">No commits found</div>
               )}
               {diffData.map((c) => (
-                <CommitCard key={c._id ?? c.timestamp} commit={c} />
+                <CommitCard key={c.timestamp} commit={c} />
+                // <CommitCard key={c._id ?? c.timestamp} commit={c} />
               ))}
             </div>
           </div>

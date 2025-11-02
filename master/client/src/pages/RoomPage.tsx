@@ -60,7 +60,7 @@ export default function RoomPage() {
     };
 
     const handleDisconnect = () => {
-      console.log("🔴 Socket disconnected");
+      console.log("🔴 roompage.tsx Socket disconnected");
       setConnected(false);
     };
 
