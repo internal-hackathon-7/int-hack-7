@@ -2,7 +2,7 @@ package constants
 
 var MasterURL string
 
-var CommitInterval = 5
+var CommitInterval = 20
 
 var DefaultProjectPath = "/Users/aditya/99-trash/dummy"
 
